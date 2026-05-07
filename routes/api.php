@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\GuildPlaybackController;
 use App\Http\Controllers\Api\PlaylistCacheController;
 use App\Http\Controllers\Api\PlaylistResolveController;
+use App\Http\Controllers\Api\ToneController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/test', fn () => response()->json(['test' => 'ok']));
@@ -10,6 +11,7 @@ Route::get('/test', fn () => response()->json(['test' => 'ok']));
 Route::post('/debug', function () {
     $input = file_get_contents('php://input');
     $json = json_decode($input, true);
+
     return response()->json([
         'raw_input' => $input,
         'json_decoded' => $json,
@@ -27,6 +29,10 @@ Route::prefix('playlists/{playlistId}/cache')
 
 Route::post('/playlists/resolve', [PlaylistResolveController::class, 'resolve'])
     ->name('api.playlists.resolve');
+
+Route::post('/tones', [ToneController::class, 'store'])->name('api.tones.store');
+Route::get('/tones', [ToneController::class, 'find'])->name('api.tones.find');
+Route::get('/tones/{name}', [ToneController::class, 'show'])->name('api.tones.show');
 
 Route::prefix('guilds/{guildId}')
     ->where(['guildId' => '[0-9]+'])
