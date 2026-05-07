@@ -6,6 +6,8 @@ import laravel from 'laravel-vite-plugin';
 import { bunny } from 'laravel-vite-plugin/fonts';
 import { defineConfig } from 'vite';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 export default defineConfig({
     plugins: [
         laravel({
@@ -24,6 +26,6 @@ export default defineConfig({
             },
         }),
         tailwindcss(),
-        wayfinder(),
+        ...(isProduction ? [] : [wayfinder()]),
     ],
 });

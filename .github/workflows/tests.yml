@@ -49,8 +49,11 @@ jobs:
       - name: Generate Application Key
         run: php artisan key:generate
 
+      - name: Generate Wayfinder Types
+        run: php artisan wayfinder:generate
+
       - name: Build Assets
-        run: npm run build
+        run: NODE_ENV=production npm run build
 
       - name: Tests
         run: ./vendor/bin/phpunit
