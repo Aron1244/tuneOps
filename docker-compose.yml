@@ -15,10 +15,12 @@ services:
       - '8000:80'
 
     depends_on:
-      - redis
-      - mariadb
+      redis:
+        condition: service_healthy
+      mariadb:
+        condition: service_healthy
 
-    command: php-fpm
+    command: bash -lc "php artisan migrate --force && php artisan db:seed --force && php-fpm"
 
   nginx:
     image: nginx:alpine
@@ -26,11 +28,11 @@ services:
     ports:
       - '8001:80'
     volumes:
-      - ./:/app
+      - ./public:/app/public:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - app
-    working_dir: /app
+      app:
+        condition: service_started
 
   discord-bot:
     build:
@@ -48,35 +50,40 @@ services:
     command: bash -lc "npm install && npm run bot:discord"
 
     depends_on:
-      - app
-      - redis
+      app:
+        condition: service_started
+      redis:
+        condition: service_healthy
 
   redis:
-    image: redis:7
-
+    image: redis:7-alpine
     container_name: tuneOps_redis
-
     ports:
       - '6379:6379'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   mariadb:
     image: mariadb:11
-
     container_name: tuneOps_bot_db
-
     restart: unless-stopped
-
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: tuneOps_bot
       MYSQL_USER: laravel
       MYSQL_PASSWORD: secret
-
     ports:
       - '3306:3306'
-
     volumes:
       - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   mariadb_data:
