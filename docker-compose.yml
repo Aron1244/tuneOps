@@ -19,6 +19,7 @@ services:
 
     depends_on:
       - redis
+      - mariadb
 
   redis:
     image: redis:7
@@ -27,3 +28,25 @@ services:
 
     ports:
       - '6379:6379'
+
+  mariadb:
+    image: mariadb:11
+
+    container_name: music_bot_db
+
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: music_bot
+      MYSQL_USER: laravel
+      MYSQL_PASSWORD: secret
+
+    ports:
+      - '3306:3306'
+
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+volumes:
+  mariadb_data:
