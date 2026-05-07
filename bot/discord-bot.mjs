@@ -188,6 +188,24 @@ const voiceState = new Map();
 
 const commands = [
     new SlashCommandBuilder()
+        .setName('creartono')
+        .setDescription('Guarda un tono personalizado por nombre')
+        .addStringOption((opt) => opt.setName('nombre').setDescription('Nombre del tono').setRequired(true))
+        .addStringOption((opt) => opt.setName('link').setDescription('URL del tono').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('tono')
+        .setDescription('Agrega un tono guardado a la cola')
+        .addStringOption((opt) => opt.setName('nombre').setDescription('Nombre del tono').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('eliminartono')
+        .setDescription('Elimina un tono guardado')
+        .addStringOption((opt) => opt.setName('nombre').setDescription('Nombre del tono').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('editartono')
+        .setDescription('Edita el link de un tono guardado')
+        .addStringOption((opt) => opt.setName('nombre').setDescription('Nombre del tono').setRequired(true))
+        .addStringOption((opt) => opt.setName('link').setDescription('Nuevo link (YouTube URL)').setRequired(true)),
+    new SlashCommandBuilder()
         .setName('play')
         .setDescription('Reproduce música desde YouTube (URL o búsqueda)')
         .addStringOption((opt) => opt.setName('input').setDescription('URL o texto').setRequired(true)),
@@ -211,6 +229,14 @@ const commands = [
 
 function apiUrl(path) {
     return `${config.apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function normalizeToneName(name) {
+    return name.trim().toLowerCase();
+}
+
+function includesUrl(text) {
+    return /https?:\/\//i.test(text);
 }
 
 async function apiRequest(path, { method = 'GET', body } = {}) {
@@ -467,6 +493,102 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     try {
+        if (interaction.commandName === 'creartono') {
+            const name = interaction.options.getString('nombre', true).trim();
+            const url = interaction.options.getString('link', true).trim();
+            const result = await apiRequest('/tones', {
+                method: 'POST',
+                body: { name, url },
+            });
+
+            await interaction.reply(
+                result.created
+                    ? `✅ Tono guardado: **${result.name}**`
+                    : `♻️ Tono actualizado: **${result.name}**`,
+            );
+
+            return;
+        }
+
+        if (interaction.commandName === 'tono') {
+            const requestedName = interaction.options.getString('nombre', true);
+
+            if (includesUrl(requestedName)) {
+                await interaction.reply('❌ Este comando solo acepta nombre. Usa `/creartono <nombre> <link>` para guardar un tono.');
+
+                return;
+            }
+
+            await interaction.deferReply();
+            await ensureVoiceConnection(interaction);
+
+            const tone = await apiRequest(`/tones?name=${encodeURIComponent(normalizeToneName(requestedName))}`);
+            const state = await apiRequest(`/guilds/${guildId}/playback`);
+            const isDuplicate = state.queue.some((item) => item.url === tone.url);
+
+            if (isDuplicate) {
+                await interaction.editReply(`⚠️ **${tone.name}** ya está en la cola.`);
+
+                return;
+            }
+
+            await apiRequest(`/guilds/${guildId}/queue/items`, {
+                method: 'POST',
+                body: { item: { tipo: 'youtube_pendiente', url: tone.url, titulo: tone.name } },
+            });
+
+            await startPlaybackIfIdle(guildId);
+            await interaction.editReply(`📝 Tono añadido a la cola: **${tone.name}**`);
+
+            return;
+        }
+
+        if (interaction.commandName === 'eliminartono') {
+            const name = interaction.options.getString('nombre', true).trim();
+
+            try {
+                await apiRequest(`/tones?name=${encodeURIComponent(normalizeToneName(name))}`, {
+                    method: 'DELETE',
+                });
+                await interaction.reply(`✅ Tono eliminado: **${name}**`);
+            } catch (error) {
+                if (error.message.includes('404') || error.message.includes('Not found')) {
+                    await interaction.reply(`❌ No se encontró el tono: **${name}**`);
+                } else {
+                    throw error;
+                }
+            }
+
+            return;
+        }
+
+        if (interaction.commandName === 'editartono') {
+            const name = interaction.options.getString('nombre', true).trim();
+            const newLink = interaction.options.getString('link', true).trim();
+
+            if (!/^https?:\/\//i.test(newLink)) {
+                await interaction.reply('❌ El link debe ser una URL válida (http:// o https://)');
+
+                return;
+            }
+
+            try {
+                await apiRequest(`/tones?name=${encodeURIComponent(normalizeToneName(name))}`, {
+                    method: 'PUT',
+                    body: { url: newLink },
+                });
+                await interaction.reply(`✏️ Tono actualizado: **${name}** → ${newLink}`);
+            } catch (error) {
+                if (error.message.includes('404') || error.message.includes('Not found')) {
+                    await interaction.reply(`❌ No se encontró el tono: **${name}**`);
+                } else {
+                    throw error;
+                }
+            }
+
+            return;
+        }
+
         if (interaction.commandName === 'play') {
             const input = interaction.options.getString('input', true);
             await interaction.deferReply();
@@ -619,12 +741,30 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
 
         if (interaction.commandName === 'comandos') {
             await interaction.reply(
-                [
-                    '📜 **Comandos**',
-                    '/play, /skip, /eliminar, /limpiar, /lista, /comandos',
-                    '/debugvoz, /pahora, /last, /stop, /leave',
-                    '/looplist, /loopsingle, /noloop',
-                ].join('\n'),
+                `📜 **Comandos disponibles**\n\n` +
+                `**🎵 Reproducción**\n` +
+                `/play <URL/búsqueda> - Reproduce música desde YouTube\n` +
+                `/skip - Salta la canción actual\n` +
+                `/stop - Detiene reproducción y limpia cola\n` +
+                `/lista - Muestra estado de reproducción y cola\n` +
+                `/pahora - Muestra las próximas 5 canciones\n` +
+                `/last - Salta a la última canción y limpia el resto\n\n` +
+                `**🔄 Loops**\n` +
+                `/looplist - Activa loop de lista\n` +
+                `/loopsingle - Activa loop de canción actual\n` +
+                `/noloop - Desactiva cualquier loop\n\n` +
+                `**🔊 Tonos personalizados**\n` +
+                `/creartono <nombre> <link> - Guarda un tono por nombre\n` +
+                `/tono <nombre> - Reproduce un tono guardado\n` +
+                `/editartono <nombre> <link> - Edita el link de un tono\n` +
+                `/eliminartono <nombre> - Elimina un tono guardado\n\n` +
+                `**🧹 Cola**\n` +
+                `/eliminar <texto> - Elimina canción por título\n` +
+                `/limpiar - Limpia la cola y pendientes\n\n` +
+                `**🎙️ Voz**\n` +
+                `/leave - Desconecta el bot del canal de voz\n` +
+                `/comandos - Muestra este mensaje\n` +
+                `/debugvoz - Estado interno de voz/cola (debug)`,
             );
 
             return;
