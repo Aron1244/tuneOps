@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
@@ -23,49 +24,49 @@ class PlaylistResolverService
         $urls = [];
 
         foreach ($candidateUrls as $targetUrl) {
-            foreach ([true, false] as $flatMode) {
-                $info = $this->extractInfo($targetUrl, $flatMode);
-                $entries = $info['entries'] ?? [];
+            $info = $this->extractInfo($targetUrl, true);
+            
+            // Handle both old format (with 'entries') and new format (array of URLs)
+            $entries = $info;
+            
+            foreach ($entries as $entry) {
+                // If it's a string, use it directly as URL
+                if (is_string($entry)) {
+                    $entryUrl = $entry;
+                } elseif (is_array($entry)) {
+                    $entryUrl = $entry['webpage_url'] ?? $entry['url'] ?? $entry['id'] ?? null;
+                } else {
+                    continue;
+                }
+                
+                $normalized = $this->youTubeUrl->normalizeVideoUrl(is_scalar($entryUrl) ? (string) $entryUrl : null);
 
-                if (! is_array($entries)) {
+                if ($normalized === null || isset($seen[$normalized])) {
                     continue;
                 }
 
-                foreach ($entries as $entry) {
-                    if (! is_array($entry)) {
-                        continue;
-                    }
+                $seen[$normalized] = true;
+                $urls[] = $normalized;
+            }
 
-                    $entryUrl = $entry['webpage_url'] ?? $entry['url'] ?? $entry['id'] ?? null;
-                    $normalized = $this->youTubeUrl->normalizeVideoUrl(is_scalar($entryUrl) ? (string) $entryUrl : null);
-
-                    if ($normalized === null || isset($seen[$normalized])) {
-                        continue;
-                    }
-
-                    $seen[$normalized] = true;
-                    $urls[] = $normalized;
-                }
-
-                if ($urls !== []) {
-                    return $urls;
-                }
+            if ($urls !== []) {
+                return $urls;
             }
         }
 
         return $urls;
     }
 
-    protected function extractInfo(string $url, bool $flatMode): array
+protected function extractInfo(string $url, bool $flatMode): array
     {
         $binary = env('YT_DLP_BIN', 'yt-dlp');
         $command = array_filter([
             $binary,
-            '--dump-single-json',
+            '--flat-playlist',
+            '--print', '%(url)s',
             '--ignore-errors',
             '--no-warnings',
-            '--quiet',
-            $flatMode ? '--flat-playlist' : null,
+            '--no-download',
             $this->getCookieOption(),
             $url,
         ]);
@@ -75,15 +76,51 @@ class PlaylistResolverService
         $process->run();
 
         if ($process->isSuccessful()) {
-            $json = trim($process->getOutput());
-
-            if ($json === '') {
-                return [];
+            $output = trim($process->getOutput());
+        } else {
+            $error = trim($process->getErrorOutput());
+            if (str_contains(strtolower($error), 'not found')) {
+                throw new RuntimeException('yt-dlp no está instalado.');
             }
+            return [];
+        }
 
-            $decoded = json_decode($json, true);
+        if ($output === '') {
+            return [];
+        }
 
-            return is_array($decoded) ? $decoded : [];
+        // Each line is a URL
+        $lines = explode("\n", $output);
+        $urls = [];
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line && str_starts_with($line, 'http')) {
+                $urls[] = [
+                    'url' => $line,
+                    'webpage_url' => $line,
+                ];
+            }
+        }
+        
+        return $urls;
+    }
+
+            // Each line is a URL
+            $lines = explode("\n", $output);
+            $urls = [];
+            
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line && filter_var($line, FILTER_VALIDATE_URL)) {
+                    $urls[] = [
+                        'url' => $line,
+                        'webpage_url' => $line,
+                    ];
+                }
+            }
+            
+            return $urls;
         }
 
         $error = trim($process->getErrorOutput());
@@ -98,7 +135,7 @@ class PlaylistResolverService
 
     protected function getCookieOption(): ?string
     {
-        $cookiesFile = env('YOUTUBE_COOKIES_FILE');
+        $cookiesFile = config('app.youtube_cookies_file') ?: base_path('../cookies.txt');
 
         if ($cookiesFile && file_exists($cookiesFile)) {
             return '--cookies ' . $cookiesFile;
