@@ -91,6 +91,8 @@ DB_PASSWORD=secret
 
 | Command | Description |
 |---------|-------------|
+| `/creartono <nombre> <link>` | Save or update a named tone |
+| `/tono <nombre>` | Add saved tone to queue |
 | `/play <query/url>` | Play music (YouTube search or URL) |
 | `/skip` | Skip current song |
 | `/eliminar <name>` | Remove song from queue |
@@ -112,6 +114,17 @@ DB_PASSWORD=secret
 # Resolve playlist URLs
 POST /api/playlists/resolve
 {"url": "https://www.youtube.com/playlist?list=PLxxx", "ttl_seconds": 3600}
+```
+
+### Tones
+
+```bash
+# Create or update tone
+POST /api/tones
+{"name": "intro", "url": "https://www.youtube.com/watch?v=xxxx"}
+
+# Get tone by name
+GET /api/tones?name=intro
 ```
 
 ### Guild Playback
@@ -154,6 +167,7 @@ DELETE /api/guilds/{guildId}/loop       # Disable loop
 - ✅ YouTube cookies to bypass rate limits
 - ✅ Stream directly via yt-dlp (no play-dl)
 - ✅ nginx + PHP-FPM for reliable JSON parsing
+- ✅ CRUD web de tonos en `/tones` (Laravel + React + Tailwind)
 
 ---
 
