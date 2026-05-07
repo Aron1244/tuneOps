@@ -67,6 +67,8 @@ return [
 
     'timezone' => 'UTC',
 
+    'youtube_cookies_file' => env('YOUTUBE_COOKIES_FILE'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
