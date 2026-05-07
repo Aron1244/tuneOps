@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import fs from 'node:fs';
 import { spawn } from 'node:child_process';
-import { Readable, PassThrough } from 'node:stream';
+import fs from 'node:fs';
+import { PassThrough } from 'node:stream';
 
 import {
     AudioPlayerStatus,
@@ -22,12 +22,12 @@ import {
 import play from 'play-dl';
 
 process.on('unhandledRejection', (reason) => {
-    // eslint-disable-next-line no-console
+     
     console.error('unhandledRejection:', reason);
 });
 
 process.on('uncaughtException', (error) => {
-    // eslint-disable-next-line no-console
+     
     console.error('uncaughtException:', error);
 });
 
@@ -44,6 +44,7 @@ function loadYoutubeCookieString() {
     }
 
     const cookieFile = '/app/cookies.txt';
+
     if (!fs.existsSync(cookieFile)) {
         return null;
     }
@@ -53,11 +54,13 @@ function loadYoutubeCookieString() {
 
     for (const line of content.split(/\r?\n/)) {
         const trimmed = line.trim();
+
         if (!trimmed || trimmed.startsWith('#')) {
             continue;
         }
 
         const parts = trimmed.split('\t');
+
         if (parts.length < 7) {
             continue;
         }
@@ -84,6 +87,7 @@ async function extractPlaylistUrls(url) {
         ];
         
         const cookieFile = '/app/cookies.txt';
+
         if (fs.existsSync(cookieFile)) {
             args.push('--cookies', cookieFile);
         }
@@ -106,6 +110,7 @@ async function extractPlaylistUrls(url) {
         proc.on('close', (code) => {
             if (code !== 0 && !output) {
                 reject(new Error(`yt-dlp failed: ${errorData}`));
+
                 return;
             }
             
@@ -121,7 +126,7 @@ async function extractPlaylistUrls(url) {
 }
 
 async function getAudioStream(videoUrl) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const args = [
             '-f', 'bestaudio',
             '-o', '-',
@@ -131,6 +136,7 @@ async function getAudioStream(videoUrl) {
         ];
         
         const cookieFile = '/app/cookies.txt';
+
         if (fs.existsSync(cookieFile)) {
             args.push('--cookies', cookieFile);
         }
@@ -154,6 +160,7 @@ async function getAudioStream(videoUrl) {
         
         proc.stderr.on('data', (chunk) => {
             const msg = chunk.toString();
+
             if (msg.includes('ERROR')) {
                 console.error('yt-dlp:', msg.trim());
             }
@@ -220,6 +227,7 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
 
     const text = await response.text();
     let json = {};
+
     try {
         json = text ? JSON.parse(text) : {};
     } catch {
@@ -228,6 +236,7 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
 
     if (!response.ok) {
         console.error(`API error ${response.status}: ${method} ${path}`, json);
+
         throw new Error(json.message || `API ${method} ${path} failed (${response.status})`);
     }
 
@@ -250,7 +259,7 @@ function getGuildRuntime(guildId) {
         });
 
         player.on('error', (error) => {
-            // eslint-disable-next-line no-console
+             
             console.error(`audio player error [${guildId}]:`, error.message);
         });
     }
@@ -260,12 +269,14 @@ function getGuildRuntime(guildId) {
 
 async function notifyGuild(guildId, message) {
     const runtime = getGuildRuntime(guildId);
+
     if (!runtime.textChannelId) {
         return;
     }
 
     try {
         const channel = await client.channels.fetch(runtime.textChannelId);
+
         if (channel?.isTextBased()) {
             await channel.send(message);
         }
@@ -348,22 +359,28 @@ async function resolveTrack(input) {
 async function playNext(guildId) {
     console.log('=== playNext called ===');
     const runtime = getGuildRuntime(guildId);
+
     if (!runtime.connection) {
         console.log('No voice connection, skipping');
+
         return;
     }
+
     if (!runtime.connection) {
         return;
     }
 
     const response = await apiRequest(`/guilds/${guildId}/queue/next`, { method: 'POST' });
+
     if (!response.has_item || !response.next) {
         runtime.currentTitle = null;
+
         return;
     }
 
     const item = response.next;
     const sourceUrl = item.url || item.video_url || item.webpage_url;
+
     if (!sourceUrl) {
         await playNext(guildId);
 
@@ -425,7 +442,7 @@ client.once(Events.ClientReady, async () => {
         });
     }
 
-    // eslint-disable-next-line no-console
+     
     console.log(`Discord bot conectado como ${client.user.tag}`);
 });
 
@@ -443,7 +460,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             try {
                 await playNext(guildId);
             } catch (error) {
-                // eslint-disable-next-line no-console
+                 
                 console.error('playNext error:', error.message);
             }
         });
@@ -464,11 +481,13 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
                     
                     if (!videoUrls || videoUrls.length === 0) {
                         await interaction.editReply('❌ No se pudieron extraer canciones de la playlist.');
+
                         return;
                     }
                     
                     // Add each video to queue
                     let addedCount = 0;
+
                     for (const videoUrl of videoUrls) {
                         try {
                             await apiRequest(`/guilds/${guildId}/queue/items`, {
@@ -476,7 +495,7 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
                                 body: { item: { tipo: 'youtube_pendiente', url: videoUrl, titulo: videoUrl } },
                             });
                             addedCount++;
-                        } catch (e) {
+                        } catch {
                             // Skip failed items
                         }
                     }
@@ -501,6 +520,7 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
                 
                 if (isDuplicate) {
                     await interaction.editReply(`⚠️ **${input}** ya está en la cola.`);
+
                     return;
                 }
                 
@@ -512,13 +532,16 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
 
                 await startPlaybackIfIdle(guildId);
                 await interaction.editReply(`📝 Añadido a la cola: **${title}**`);
+
                 return;
             }
 
             // Otherwise treat as YouTube search
             const track = await resolveTrack(input);
+
             if (!track?.url) {
                 await interaction.editReply(`❌ No encontré ningún resultado para "${input}".`);
+
                 return;
             }
             
@@ -528,6 +551,7 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
             
             if (isDuplicate) {
                 await interaction.editReply(`⚠️ **${track.title}** ya está en la cola.`);
+
                 return;
             }
             
@@ -653,6 +677,7 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
             }
 
             let lastItem = queue.at(-1);
+
             if (!lastItem && pending.length) {
                 const url = pending.at(-1);
                 lastItem = { tipo: 'youtube_pendiente', url, titulo: `YouTube: ${url}` };
