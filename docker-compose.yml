@@ -21,6 +21,25 @@ services:
       - redis
       - mariadb
 
+  discord-bot:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+
+    container_name: tuneOps_discord_bot
+
+    volumes:
+      - ./:/app
+      - discord_bot_node_modules:/app/node_modules
+
+    working_dir: /app
+
+    command: bash -lc "npm install && npm run bot:discord"
+
+    depends_on:
+      - app
+      - redis
+
   redis:
     image: redis:7
 
@@ -32,13 +51,13 @@ services:
   mariadb:
     image: mariadb:11
 
-    container_name: music_bot_db
+    container_name: tuneOps_bot_db
 
     restart: unless-stopped
 
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: music_bot
+      MYSQL_DATABASE: tuneOps_bot
       MYSQL_USER: laravel
       MYSQL_PASSWORD: secret
 
@@ -50,3 +69,4 @@ services:
 
 volumes:
   mariadb_data:
+  discord_bot_node_modules:

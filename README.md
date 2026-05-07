@@ -54,15 +54,15 @@ docker ps
 
 Expected services:
 
-- music_bot_app
-- music_bot_redis
+- tuneOps_app
+- tuneOps_redis
 
 ---
 
 # Enter Main Container
 
 ```bash
-docker exec -it music_bot_app bash
+docker exec -it tuneOps_app bash
 ```
 
 ---
@@ -116,6 +116,89 @@ Expected response:
 ```txt
 "hello"
 ```
+
+---
+
+# Bot API (Redis + YouTube)
+
+La API ya incluye la lógica base del bot para:
+- cache de playlist en Redis
+- resolución de playlist YouTube con `yt-dlp`
+- estado de reproducción/cola/loop por `guild_id`
+
+## Endpoints principales
+
+```txt
+POST   /api/playlists/resolve
+PUT    /api/playlists/{playlistId}/cache
+GET    /api/playlists/{playlistId}/cache
+DELETE /api/playlists/{playlistId}/cache
+
+GET    /api/guilds/{guildId}/playback
+POST   /api/guilds/{guildId}/playlists/load
+POST   /api/guilds/{guildId}/queue/items
+POST   /api/guilds/{guildId}/queue/next
+DELETE /api/guilds/{guildId}/queue
+DELETE /api/guilds/{guildId}/queue/items/match?query=texto
+PUT    /api/guilds/{guildId}/current
+DELETE /api/guilds/{guildId}/current
+
+POST   /api/guilds/{guildId}/pending-urls
+POST   /api/guilds/{guildId}/pending-urls/pop
+DELETE /api/guilds/{guildId}/pending-urls
+
+POST   /api/guilds/{guildId}/loop/list
+POST   /api/guilds/{guildId}/loop/single
+DELETE /api/guilds/{guildId}/loop
+```
+
+## Ejemplos rápidos
+
+Resolver playlist:
+
+```json
+{
+  "url": "https://www.youtube.com/playlist?list=PL12345",
+  "ttl_seconds": 3600
+}
+```
+
+Encolar item:
+
+```json
+{
+  "item": {
+    "tipo": "youtube_pendiente",
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "titulo": "YouTube 1: dQw4w9WgXcQ"
+  }
+}
+```
+
+---
+
+# Discord Bot (slash commands `/`)
+
+El bot ya no usa Python. Ahora corre con Node + discord.js y consume la API Laravel.
+
+## Variables necesarias en `.env`
+
+```env
+BOT_API_BASE_URL=http://app:8000/api
+DISCORD_TOKEN=tu_token_bot
+DISCORD_CLIENT_ID=tu_application_id
+DISCORD_GUILD_ID=opcional_para_registro_rapido_local
+```
+
+## Levantar bot en Docker
+
+```bash
+docker compose up -d --build
+docker logs -f tuneOps_discord_bot
+```
+
+Comandos disponibles en Discord:
+`/play`, `/skip`, `/eliminar`, `/limpiar`, `/lista`, `/comandos`, `/debugvoz`, `/pahora`, `/last`, `/stop`, `/leave`, `/looplist`, `/loopsingle`, `/noloop`.
 
 ---
 
