@@ -5,6 +5,18 @@ use App\Http\Controllers\Api\PlaylistCacheController;
 use App\Http\Controllers\Api\PlaylistResolveController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/test', fn () => response()->json(['test' => 'ok']));
+
+Route::post('/debug', function () {
+    $input = file_get_contents('php://input');
+    $json = json_decode($input, true);
+    return response()->json([
+        'raw_input' => $input,
+        'json_decoded' => $json,
+        'request_all' => request()->all(),
+    ]);
+});
+
 Route::prefix('playlists/{playlistId}/cache')
     ->where(['playlistId' => '[A-Za-z0-9_-]+'])
     ->group(function () {
