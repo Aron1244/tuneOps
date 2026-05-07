@@ -1,287 +1,197 @@
-# Development Setup
+# tuneOps - Discord Music Bot
 
 ## Requirements
 
 - Docker Desktop
 - WSL2 enabled (Windows)
+- YouTube cookies file (`cookies.txt` in project root)
 
 ---
 
-# Included Technologies
+## Architecture
 
-- PHP 8.4
-- Laravel
-- Node.js / NPM
-- Redis
-- FFmpeg
-- Docker Compose
-
----
-
-# Docker Structure
-
-```txt
-docker/
-└── php/
-    └── Dockerfile
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Discord    │────▶│  Bot (Node) │────▶│  API (PHP)  │
+│  User       │     │  discord.js │     │  Laravel    │
+└─────────────┘     └─────────────┘     └─────────────┘
+                                              │
+                            ┌─────────────────┼─────────────────┐
+                            ▼                 ▼                 ▼
+                     ┌───────────┐    ┌───────────┐    ┌───────────┐
+                     │  Redis    │    │  MariaDB  │    │  yt-dlp   │
+                     │  (queue)  │    │  (data)   │    │  (audio)  │
+                     └───────────┘    └───────────┘    └───────────┘
 ```
 
 ---
 
-# Build Containers
+## Services
 
-From the project root:
-
-```bash
-docker compose build
-```
-
----
-
-# Start Services
-
-```bash
-docker compose up -d
-```
+| Service | Image | Port |
+|---------|-------|------|
+| API (nginx + PHP-FPM) | tuneops-app | 8001 |
+| Discord Bot | tuneops-discord-bot | - |
+| Redis | redis:7 | 6379 |
+| MariaDB | mariadb:11 | 3306 |
+| nginx | nginx:alpine | 8001 |
 
 ---
 
-# Verify Running Containers
+## Setup
 
-```bash
-docker ps
-```
-
-Expected services:
-
-- tuneOps_app
-- tuneOps_redis
-
----
-
-# Enter Main Container
-
-```bash
-docker exec -it tuneOps_app bash
-```
-
----
-
-# Laravel Environment Variables
-
-Create `.env`:
+### 1. Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Generate APP_KEY:
+Add your YouTube cookies in project root as `cookies.txt`.
 
-```bash
-php artisan key:generate
-```
-
----
-
-# Redis Configuration
-
-Inside `.env`:
-
-```env
-CACHE_STORE=redis
-QUEUE_CONNECTION=redis
-REDIS_CLIENT=phpredis
-REDIS_HOST=redis
-```
-
----
-
-# Verify Redis
-
-Open Laravel Tinker:
-
-```bash
-php artisan tinker
-```
-
-Test cache:
-
-```php
-Cache::put('test', 'hello', 60);
-Cache::get('test');
-```
-
-Expected response:
-
-```txt
-"hello"
-```
-
----
-
-# Bot API (Redis + YouTube)
-
-La API ya incluye la lógica base del bot para:
-- cache de playlist en Redis
-- resolución de playlist YouTube con `yt-dlp`
-- estado de reproducción/cola/loop por `guild_id`
-
-## Endpoints principales
-
-```txt
-POST   /api/playlists/resolve
-PUT    /api/playlists/{playlistId}/cache
-GET    /api/playlists/{playlistId}/cache
-DELETE /api/playlists/{playlistId}/cache
-
-GET    /api/guilds/{guildId}/playback
-POST   /api/guilds/{guildId}/playlists/load
-POST   /api/guilds/{guildId}/queue/items
-POST   /api/guilds/{guildId}/queue/next
-DELETE /api/guilds/{guildId}/queue
-DELETE /api/guilds/{guildId}/queue/items/match?query=texto
-PUT    /api/guilds/{guildId}/current
-DELETE /api/guilds/{guildId}/current
-
-POST   /api/guilds/{guildId}/pending-urls
-POST   /api/guilds/{guildId}/pending-urls/pop
-DELETE /api/guilds/{guildId}/pending-urls
-
-POST   /api/guilds/{guildId}/loop/list
-POST   /api/guilds/{guildId}/loop/single
-DELETE /api/guilds/{guildId}/loop
-```
-
-## Ejemplos rápidos
-
-Resolver playlist:
-
-```json
-{
-  "url": "https://www.youtube.com/playlist?list=PL12345",
-  "ttl_seconds": 3600
-}
-```
-
-Encolar item:
-
-```json
-{
-  "item": {
-    "tipo": "youtube_pendiente",
-    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    "titulo": "YouTube 1: dQw4w9WgXcQ"
-  }
-}
-```
-
----
-
-# Discord Bot (slash commands `/`)
-
-El bot ya no usa Python. Ahora corre con Node + discord.js y consume la API Laravel.
-
-## Variables necesarias en `.env`
-
-```env
-BOT_API_BASE_URL=http://app:8000/api
-DISCORD_TOKEN=tu_token_bot
-DISCORD_CLIENT_ID=tu_application_id
-DISCORD_GUILD_ID=opcional_para_registro_rapido_local
-```
-
-## Levantar bot en Docker
+### 2. Build & Start
 
 ```bash
 docker compose up -d --build
-docker logs -f tuneOps_discord_bot
 ```
 
-Comandos disponibles en Discord:
-`/play`, `/skip`, `/eliminar`, `/limpiar`, `/lista`, `/comandos`, `/debugvoz`, `/pahora`, `/last`, `/stop`, `/leave`, `/looplist`, `/loopsingle`, `/noloop`.
-
----
-
-# Verify Installed Dependencies
-
-## PHP
+### 3. Verify
 
 ```bash
-php -v
-```
-
-## Composer
-
-```bash
-composer --version
-```
-
-## Node
-
-```bash
-node -v
-```
-
-## NPM
-
-```bash
-npm -v
-```
-
-## FFmpeg
-
-```bash
-ffmpeg -version
-```
-
-## Redis CLI
-
-```bash
-redis-cli --version
+docker compose ps
 ```
 
 ---
 
-# Install Frontend Dependencies
+## Configuration
+
+### Required .env variables
+
+```env
+# Discord Bot
+DISCORD_TOKEN=your_bot_token
+DISCORD_CLIENT_ID=your_app_client_id
+DISCORD_GUILD_ID=optional_guild_id
+
+# API (uses nginx, not app:8000)
+BOT_API_BASE_URL=http://nginx:80/api
+
+# YouTube cookies (file must exist in project root)
+YOUTUBE_COOKIES_FILE=/app/cookies.txt
+
+# Database
+DB_HOST=bot_db
+DB_DATABASE=tuneOps_bot
+DB_USERNAME=laravel
+DB_PASSWORD=secret
+```
+
+---
+
+## Discord Commands
+
+| Command | Description |
+|---------|-------------|
+| `/play <query/url>` | Play music (YouTube search or URL) |
+| `/skip` | Skip current song |
+| `/eliminar <name>` | Remove song from queue |
+| `/limpiar` | Clear queue |
+| `/lista` | Show queue |
+| `/looplist` | Loop entire queue |
+| `/loopsingle` | Loop current song |
+| `/noloop` | Disable loop |
+| `/stop` | Stop and clear |
+| `/leave` | Disconnect from voice |
+
+---
+
+## API Endpoints
+
+### Playlists
 
 ```bash
-npm install
+# Resolve playlist URLs
+POST /api/playlists/resolve
+{"url": "https://www.youtube.com/playlist?list=PLxxx", "ttl_seconds": 3600}
 ```
 
----
-
-# Start Laravel Server
-
-Inside the container:
+### Guild Playback
 
 ```bash
-php artisan serve --host=0.0.0.0 --port=8000
-```
+# Get playback state
+GET /api/guilds/{guildId}/playback
 
-Open in browser:
+# Add to queue
+POST /api/guilds/{guildId}/queue/items
+{"item": {"tipo": "youtube_pendiente", "url": "https://...", "titulo": "Song Title"}}
 
-```txt
-http://localhost:8000
+# Get next item
+POST /api/guilds/{guildId}/queue/next
+
+# Clear queue
+DELETE /api/guilds/{guildId}/queue
+
+# Load playlist
+POST /api/guilds/{guildId}/playlists/load
+{"url": "https://www.youtube.com/playlist?list=PLxxx", "replace_pending": true}
+
+# Loop modes
+POST /api/guilds/{guildId}/loop/list    # Loop entire list
+POST /api/guilds/{guildId}/loop/single # Loop single song
+DELETE /api/guilds/{guildId}/loop       # Disable loop
 ```
 
 ---
 
-# Current Services
+## Features
 
-| Service | Purpose |
-|---|---|
-| Laravel | Backend/API |
-| Redis | Cache and queues |
-| FFmpeg | Audio processing |
-| Docker | Reproducible environment |
+- ✅ YouTube search and direct URLs
+- ✅ YouTube playlists (extracts all videos)
+- ✅ Multiple URL support (any yt-dlp supported site)
+- ✅ Queue management with duplicates detection
+- ✅ Loop modes (list/single)
+- ✅ Skip, remove, clear commands
+- ✅ Redis-based state persistence
+- ✅ YouTube cookies to bypass rate limits
+- ✅ Stream directly via yt-dlp (no play-dl)
+- ✅ nginx + PHP-FPM for reliable JSON parsing
 
 ---
 
-# Next Steps
+## Development
 
-- Integrate Discord bot
-- Add React + Blade
-- Implement observability
-- Integrate Lavalink
-- Configure queues/jobs
-- Add dashboards and metrics
+### Rebuild specific service
+
+```bash
+docker compose build app
+docker compose build discord-bot
+docker compose up -d
+```
+
+### View logs
+
+```bash
+docker compose logs -f app
+docker compose logs -f discord-bot
+docker compose logs -f nginx
+```
+
+### Test API
+
+```bash
+# Simple test
+curl http://localhost:8001/api/test
+
+# Resolve playlist
+curl -X POST http://localhost:8001/api/playlists/resolve \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.youtube.com/watch?v=xxxx"}'
+```
+
+---
+
+## Notes
+
+- Cookies file (`cookies.txt`) is gitignored - add your own from browser extension
+- Bot automatically extracts playlist videos and adds each to queue
+- Failed streams skip to next song instead of re-adding to queue
+- Uses nginx on port 8001, not the old PHP built-in server on port 8000
