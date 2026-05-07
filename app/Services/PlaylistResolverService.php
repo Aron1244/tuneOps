@@ -66,6 +66,7 @@ class PlaylistResolverService
             '--no-warnings',
             '--quiet',
             $flatMode ? '--flat-playlist' : null,
+            $this->getCookieOption(),
             $url,
         ]);
 
@@ -93,5 +94,16 @@ class PlaylistResolverService
         }
 
         return [];
+    }
+
+    protected function getCookieOption(): ?string
+    {
+        $cookiesFile = env('YOUTUBE_COOKIES_FILE');
+
+        if ($cookiesFile && file_exists($cookiesFile)) {
+            return '--cookies ' . $cookiesFile;
+        }
+
+        return null;
     }
 }
