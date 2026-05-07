@@ -13,7 +13,6 @@ type Props = {
 
 export default function Login({
     status,
-    canResetPassword,
 }: Props) {
     const { data, setData, post, processing, errors } = useForm({
         email: '',
