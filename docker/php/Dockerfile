@@ -1,6 +1,5 @@
 FROM php:8.4-fpm
 
-# Instalar paquetes necesarios
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -25,7 +24,6 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app

@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/php/Dockerfile.fpm
+      dockerfile: docker/php/Dockerfile
 
     container_name: tuneOps_app
 
