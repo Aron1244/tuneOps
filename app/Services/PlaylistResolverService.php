@@ -103,34 +103,7 @@ protected function extractInfo(string $url, bool $flatMode): array
             }
         }
         
-        return $urls;
-    }
-
-            // Each line is a URL
-            $lines = explode("\n", $output);
-            $urls = [];
-            
-            foreach ($lines as $line) {
-                $line = trim($line);
-                if ($line && filter_var($line, FILTER_VALIDATE_URL)) {
-                    $urls[] = [
-                        'url' => $line,
-                        'webpage_url' => $line,
-                    ];
-                }
-            }
-            
-            return $urls;
-        }
-
-        $error = trim($process->getErrorOutput());
-        if (str_contains(strtolower($error), 'not found') || str_contains(strtolower($error), 'is not recognized')) {
-            throw new RuntimeException(
-                'yt-dlp no está instalado en el contenedor. Instálalo para resolver playlists automáticamente.',
-            );
-        }
-
-        return [];
+return $urls;
     }
 
     protected function getCookieOption(): ?string
