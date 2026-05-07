@@ -18,10 +18,39 @@ class PlaylistResolveController extends Controller
         PlaylistResolverService $resolver,
         PlaylistCacheService $playlistCache,
     ): JsonResponse {
-        $validated = $request->validate([
+        $rawContent = $request->getContent();
+        $data = $request->all();
+
+        if (empty($data)) {
+            $input = $request->getContent();
+            $data = json_decode($input, true) ?: [];
+        }
+
+        \Illuminate\Support\Facades\Log::info('PlaylistResolveController', [
+            'method' => $request->method(),
+            'content-type' => $request->header('Content-Type'),
+            'raw_content' => $rawContent,
+            'data' => $data,
+        ]);
+
+        $validator = validator($data, [
             'url' => ['required', 'string', 'max:5000'],
             'ttl_seconds' => ['nullable', 'integer', 'min:60', 'max:86400'],
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors()->toArray(),
+                'debug' => [
+                    'raw_content' => $rawContent,
+                    'all' => $data,
+                    'content_type' => $request->header('Content-Type'),
+                ],
+            ], 422);
+        }
+
+        $validated = $validator->validated();
 
         $url = trim($validated['url']);
         $playlistId = $youTubeUrl->extractPlaylistId($url);

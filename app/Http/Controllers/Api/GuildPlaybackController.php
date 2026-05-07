@@ -122,11 +122,25 @@ class GuildPlaybackController extends Controller
         PlaylistResolverService $resolver,
         PlaylistCacheService $playlistCache,
     ): JsonResponse {
-        $validated = $request->validate([
+        $data = $request->all();
+        if (empty($data)) {
+            $input = $request->getContent();
+            $data = json_decode($input, true) ?: [];
+        }
+
+        $validator = validator($data, [
             'url' => ['required', 'string', 'max:5000'],
             'replace_pending' => ['nullable', 'boolean'],
             'ttl_seconds' => ['nullable', 'integer', 'min:60', 'max:86400'],
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $validated = $validator->validated();
 
         try {
             $urls = $resolver->extractPlaylistUrls($validated['url']);
