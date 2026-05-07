@@ -1,4 +1,4 @@
-FROM php:8.4-cli
+FROM php:8.4-fpm
 
 # Instalar paquetes necesarios
 RUN apt-get update && apt-get install -y \
@@ -30,4 +30,4 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
-CMD ["bash"]
+CMD ["php-fpm"]
