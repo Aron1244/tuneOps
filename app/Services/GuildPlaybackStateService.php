@@ -8,12 +8,12 @@ class GuildPlaybackStateService
 {
     public function enqueue(string|int $guildId, array $item): void
     {
-        Redis::rpush($this->queueKey($guildId), [json_encode($item, JSON_UNESCAPED_UNICODE)]);
+        Redis::rpush($this->queueKey($guildId), json_encode($item, JSON_UNESCAPED_UNICODE));
     }
 
     public function enqueueFront(string|int $guildId, array $item): void
     {
-        Redis::lpush($this->queueKey($guildId), [json_encode($item, JSON_UNESCAPED_UNICODE)]);
+        Redis::lpush($this->queueKey($guildId), json_encode($item, JSON_UNESCAPED_UNICODE));
     }
 
     public function dequeue(string|int $guildId): ?array
