@@ -163,6 +163,7 @@ async function getAudioStream(videoUrl, attempt = 0) {
         
         proc.stdout.on('error', (err) => {
             console.error('stdout error:', err.message);
+
             if (!errorOccurred) {
                 errorOccurred = true;
                 passThrough.destroy(err);
@@ -175,6 +176,7 @@ async function getAudioStream(videoUrl, attempt = 0) {
         
         proc.on('error', (err) => {
             console.error('proc error:', err.message);
+
             if (!errorOccurred) {
                 errorOccurred = true;
                 passThrough.end();
@@ -192,6 +194,7 @@ async function getAudioStream(videoUrl, attempt = 0) {
         
         proc.on('close', (code) => {
             console.log('yt-dlp exited with code:', code);
+
             if (!errorOccurred && ytError && code !== 0 && attempt < maxAttempts - 1) {
                 console.log(`Retrying getAudioStream (attempt ${attempt + 1})...`);
                 setTimeout(() => {
@@ -199,8 +202,10 @@ async function getAudioStream(videoUrl, attempt = 0) {
                         .then(resolve)
                         .catch(reject);
                 }, 500);
+
                 return;
             }
+
             if (!errorOccurred) {
                 passThrough.end();
             }
@@ -327,6 +332,7 @@ function getGuildRuntime(guildId) {
 
         player.on(AudioPlayerStatus.Idle, async () => {
             console.log(`Player idle for guild ${guildId}`);
+
             try {
                 await playNext(guildId);
             } catch (error) {
@@ -386,8 +392,9 @@ async function ensureVoiceConnection(interaction) {
 
     try {
         await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
-    } catch (err) {
+    } catch {
         connection.destroy();
+
         throw new Error('No pudo conectarse al canal de voz.');
     }
 
@@ -503,6 +510,7 @@ async function playNext(guildId, attempt = 0) {
         if (attempt < 2) {
             console.log(`Retrying playNext (attempt ${attempt + 1})...`);
             await new Promise(r => setTimeout(r, 1000));
+
             return playNext(guildId, attempt + 1);
         }
         
@@ -688,6 +696,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                             });
                             addedCount++;
                         } catch {
+                            // Ignore failed items
                         }
                     }
                     
