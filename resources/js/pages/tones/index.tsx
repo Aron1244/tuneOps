@@ -1,6 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { Pencil, Trash2 } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,7 @@ export default function TonesIndex({ tones }: { tones: Tone[] }) {
 
     const submitEdit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+
         if (!editingTone) {
             return;
         }
@@ -136,7 +138,10 @@ export default function TonesIndex({ tones }: { tones: Tone[] }) {
                         </div>
 
                         <div className="flex justify-end">
-                            <Button type="submit" disabled={createForm.processing}>
+                            <Button
+                                type="submit"
+                                disabled={createForm.processing}
+                            >
                                 Guardar tono
                             </Button>
                         </div>
@@ -164,7 +169,9 @@ export default function TonesIndex({ tones }: { tones: Tone[] }) {
                                             )
                                         }
                                     />
-                                    <InputError message={editForm.errors.name} />
+                                    <InputError
+                                        message={editForm.errors.name}
+                                    />
                                 </div>
 
                                 <div className="grid gap-2">

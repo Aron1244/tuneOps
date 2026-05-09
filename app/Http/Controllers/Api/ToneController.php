@@ -9,6 +9,15 @@ use Illuminate\Http\Request;
 
 class ToneController extends Controller
 {
+    public function index(): JsonResponse
+    {
+        $tones = Tone::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'url']);
+
+        return response()->json(['tones' => $tones]);
+    }
+
     public function find(Request $request): JsonResponse
     {
         $validated = $request->validate([

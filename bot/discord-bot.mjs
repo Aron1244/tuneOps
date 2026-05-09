@@ -248,6 +248,9 @@ const commands = [
         .addStringOption((opt) => opt.setName('nombre').setDescription('Nombre del tono').setRequired(true))
         .addStringOption((opt) => opt.setName('link').setDescription('Nuevo link (YouTube URL)').setRequired(true)),
     new SlashCommandBuilder()
+        .setName('tonos')
+        .setDescription('Muestra todos los tonos guardados'),
+    new SlashCommandBuilder()
         .setName('play')
         .setDescription('Reproduce música desde YouTube (URL o búsqueda)')
         .addStringOption((opt) => opt.setName('input').setDescription('URL o texto').setRequired(true)),
@@ -554,8 +557,20 @@ client.once(Events.ClientReady, async () => {
         });
     }
 
-     
     console.log(`Discord bot conectado como ${client.user.tag}`);
+
+    try {
+        if (config.guildId) {
+            const guild = await client.guilds.fetch(config.guildId);
+            const systemChannel = guild.systemChannel;
+
+            if (systemChannel) {
+                await systemChannel.send('✅ tuneOps bot listo y esperando comandos.');
+            }
+        }
+    } catch (err) {
+        console.log('No se pudo enviar mensaje de listo:', err.message);
+    }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -665,6 +680,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     throw error;
                 }
             }
+
+            return;
+        }
+
+        if (interaction.commandName === 'tonos') {
+            await interaction.deferReply();
+
+            const result = await apiRequest('/tones/list');
+
+            if (!result.tones || result.tones.length === 0) {
+                await interaction.editReply('📭 No hay tonos guardados. Usa `/creartono <nombre> <link>` para crear uno.');
+
+                return;
+            }
+
+            const list = result.tones
+                .map(t => `• **${t.name}**`)
+                .join('\n');
+
+            await interaction.editReply(`🎵 **Tonos guardados** (${result.tones.length}):\n${list}`);
 
             return;
         }
@@ -813,7 +848,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
 
         if (interaction.commandName === 'comandos') {
-            await interaction.reply(
+            await interaction.deferReply();
+            await interaction.editReply(
                 `📜 **Comandos disponibles**\n\n` +
                 `**🎵 Reproducción**\n` +
                 `/play <URL/búsqueda> - Reproduce música desde YouTube\n` +
@@ -827,6 +863,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 `/loopsingle - Activa loop de canción actual\n` +
                 `/noloop - Desactiva cualquier loop\n\n` +
                 `**🔊 Tonos personalizados**\n` +
+                `/tonos - Muestra todos los tonos guardados\n` +
                 `/creartono <nombre> <link> - Guarda un tono por nombre\n` +
                 `/tono <nombre> - Reproduce un tono guardado\n` +
                 `/editartono <nombre> <link> - Edita el link de un tono\n` +

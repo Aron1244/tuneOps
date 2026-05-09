@@ -32,6 +32,7 @@ Route::post('/playlists/resolve', [PlaylistResolveController::class, 'resolve'])
 
 Route::post('/tones', [ToneController::class, 'store'])->name('api.tones.store');
 Route::get('/tones', [ToneController::class, 'find'])->name('api.tones.find');
+Route::get('/tones/list', [ToneController::class, 'index'])->name('api.tones.index');
 Route::get('/tones/{name}', [ToneController::class, 'show'])->name('api.tones.show');
 
 Route::prefix('guilds/{guildId}')
