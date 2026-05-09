@@ -8,6 +8,7 @@ use App\Services\PlaylistResolverService;
 use App\Services\YouTubeUrlService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class PlaylistResolveController extends Controller
@@ -26,7 +27,7 @@ class PlaylistResolveController extends Controller
             $data = json_decode($input, true) ?: [];
         }
 
-        \Illuminate\Support\Facades\Log::info('PlaylistResolveController', [
+        Log::info('PlaylistResolveController', [
             'method' => $request->method(),
             'content-type' => $request->header('Content-Type'),
             'raw_content' => $rawContent,

@@ -11,9 +11,7 @@ type Props = {
     canRegister: boolean;
 };
 
-export default function Login({
-    status,
-}: Props) {
+export default function Login({ status }: Props) {
     const { data, setData, post, processing, errors } = useForm({
         email: '',
         password: '',
@@ -44,7 +42,9 @@ export default function Login({
                             placeholder="email@example.com"
                         />
                         {errors.email && (
-                            <div className="text-sm text-red-500">{errors.email}</div>
+                            <div className="text-sm text-red-500">
+                                {errors.email}
+                            </div>
                         )}
                     </div>
 
@@ -55,16 +55,24 @@ export default function Login({
                             type="password"
                             name="password"
                             value={data.password}
-                            onChange={(e) => setData('password', e.target.value)}
+                            onChange={(e) =>
+                                setData('password', e.target.value)
+                            }
                             required
                             placeholder="Password"
                         />
                         {errors.password && (
-                            <div className="text-sm text-red-500">{errors.password}</div>
+                            <div className="text-sm text-red-500">
+                                {errors.password}
+                            </div>
                         )}
                     </div>
 
-                    <Button type="submit" disabled={processing} className="w-full">
+                    <Button
+                        type="submit"
+                        disabled={processing}
+                        className="w-full"
+                    >
                         {processing ? 'Logging in...' : 'Log in'}
                     </Button>
                 </div>

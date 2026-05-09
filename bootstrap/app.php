@@ -2,10 +2,14 @@
 
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ParseJsonBody;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Illuminate\Foundation\Http\Middleware\ValidatePostSize;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -23,10 +27,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(prepend: [
-            \App\Http\Middleware\ParseJsonBody::class,
-            \Illuminate\Http\Middleware\HandleCors::class,
-            \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
-            \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+            ParseJsonBody::class,
+            HandleCors::class,
+            ValidatePostSize::class,
+            ConvertEmptyStringsToNull::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

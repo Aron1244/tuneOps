@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
@@ -57,7 +56,7 @@ class PlaylistResolverService
         return $urls;
     }
 
-protected function extractInfo(string $url, bool $flatMode): array
+    protected function extractInfo(string $url, bool $flatMode): array
     {
         $binary = env('YT_DLP_BIN', 'yt-dlp');
         $command = array_filter([
@@ -82,6 +81,7 @@ protected function extractInfo(string $url, bool $flatMode): array
             if (str_contains(strtolower($error), 'not found')) {
                 throw new RuntimeException('yt-dlp no está instalado.');
             }
+
             return [];
         }
 
@@ -103,7 +103,7 @@ protected function extractInfo(string $url, bool $flatMode): array
             }
         }
         
-return $urls;
+        return $urls;
     }
 
     protected function getCookieOption(): ?string
@@ -111,7 +111,7 @@ return $urls;
         $cookiesFile = config('app.youtube_cookies_file') ?: base_path('../cookies.txt');
 
         if ($cookiesFile && file_exists($cookiesFile)) {
-            return '--cookies ' . $cookiesFile;
+            return '--cookies '.$cookiesFile;
         }
 
         return null;

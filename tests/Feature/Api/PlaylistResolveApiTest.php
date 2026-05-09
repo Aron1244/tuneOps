@@ -14,8 +14,7 @@ class PlaylistResolveApiTest extends TestCase
     public function test_resolves_playlist_and_returns_video_urls(): void
     {
         $this->app->bind(PlaylistResolverService::class, function () {
-            return new class(new YouTubeUrlService()) extends PlaylistResolverService
-            {
+            return new class(new YouTubeUrlService) extends PlaylistResolverService {
                 public function extractPlaylistUrls(string $playlistUrl): array
                 {
                     return [
