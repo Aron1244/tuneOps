@@ -84,6 +84,7 @@ async function extractPlaylistUrls(url) {
             '--ignore-errors',
             '--no-warnings',
             '--no-download',
+            '--retries', '3',
         ];
         
         const cookieFile = '/app/cookies.txt';
@@ -125,14 +126,24 @@ async function extractPlaylistUrls(url) {
     });
 }
 
-async function getAudioStream(videoUrl) {
-    return new Promise((resolve) => {
+async function getAudioStream(videoUrl, attempt = 0) {
+    const maxAttempts = 3;
+    const delay = attempt * 1500;
+    
+    if (delay > 0) {
+        await new Promise(r => setTimeout(r, delay));
+    }
+    
+    return new Promise((resolve, reject) => {
         const args = [
             '-f', 'bestaudio',
             '-o', '-',
             '--no-playlist',
             '--no-warnings',
-            videoUrl,
+            '--live-from-start',
+            '--retries', '5',
+            '--fragment-retries', '5',
+            '--buffer-size', '16M',
         ];
         
         const cookieFile = '/app/cookies.txt';
@@ -141,12 +152,21 @@ async function getAudioStream(videoUrl) {
             args.push('--cookies', cookieFile);
         }
         
+        args.push(videoUrl);
+        
         const proc = spawn('/usr/local/bin/yt-dlp', args);
         
         const passThrough = new PassThrough();
         
+        let errorOccurred = false;
+        let ytError = '';
+        
         proc.stdout.on('error', (err) => {
             console.error('stdout error:', err.message);
+            if (!errorOccurred) {
+                errorOccurred = true;
+                passThrough.destroy(err);
+            }
         });
         
         passThrough.on('error', (err) => {
@@ -155,20 +175,35 @@ async function getAudioStream(videoUrl) {
         
         proc.on('error', (err) => {
             console.error('proc error:', err.message);
-            passThrough.end();
+            if (!errorOccurred) {
+                errorOccurred = true;
+                passThrough.end();
+            }
         });
         
         proc.stderr.on('data', (chunk) => {
             const msg = chunk.toString();
 
             if (msg.includes('ERROR')) {
+                ytError += msg;
                 console.error('yt-dlp:', msg.trim());
             }
         });
         
         proc.on('close', (code) => {
             console.log('yt-dlp exited with code:', code);
-            passThrough.end();
+            if (!errorOccurred && ytError && code !== 0 && attempt < maxAttempts - 1) {
+                console.log(`Retrying getAudioStream (attempt ${attempt + 1})...`);
+                setTimeout(() => {
+                    getAudioStream(videoUrl, attempt + 1)
+                        .then(resolve)
+                        .catch(reject);
+                }, 500);
+                return;
+            }
+            if (!errorOccurred) {
+                passThrough.end();
+            }
         });
         
         proc.stdout.pipe(passThrough);
@@ -185,6 +220,8 @@ const client = new Client({
 });
 
 const voiceState = new Map();
+const searchCache = new Map();
+const SEARCH_CACHE_TTL = 5 * 60 * 1000;
 
 const commands = [
     new SlashCommandBuilder()
@@ -277,17 +314,27 @@ function getGuildRuntime(guildId) {
             },
         });
 
-        voiceState.set(guildId, {
+        const runtime = {
             player,
             connection: null,
             textChannelId: null,
             currentTitle: null,
-        });
+        };
 
         player.on('error', (error) => {
-             
             console.error(`audio player error [${guildId}]:`, error.message);
         });
+
+        player.on(AudioPlayerStatus.Idle, async () => {
+            console.log(`Player idle for guild ${guildId}`);
+            try {
+                await playNext(guildId);
+            } catch (error) {
+                console.error('playNext error:', error.message);
+            }
+        });
+
+        voiceState.set(guildId, runtime);
     }
 
     return voiceState.get(guildId);
@@ -336,7 +383,13 @@ async function ensureVoiceConnection(interaction) {
     });
 
     connection.subscribe(runtime.player);
-    await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
+
+    try {
+        await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
+    } catch (err) {
+        connection.destroy();
+        throw new Error('No pudo conectarse al canal de voz.');
+    }
 
     runtime.connection = connection;
     runtime.textChannelId = interaction.channelId;
@@ -353,6 +406,10 @@ async function ensureVoiceConnection(interaction) {
         }
     });
 
+    connection.on(VoiceConnectionStatus.Destroyed, () => {
+        runtime.connection = null;
+    });
+
     return runtime;
 }
 
@@ -367,6 +424,13 @@ async function resolveTrack(input) {
         };
     }
 
+    const cacheKey = trimmed.toLowerCase();
+    const cached = searchCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp < SEARCH_CACHE_TTL) {
+        return cached.result;
+    }
+
     const [result] = await play.search(trimmed, {
         source: { youtube: 'video' },
         limit: 1,
@@ -376,23 +440,30 @@ async function resolveTrack(input) {
         throw new Error('No se encontró ningún video para esa búsqueda.');
     }
 
-    return {
+    const resolved = {
         url: result.url,
         title: result.title || trimmed,
     };
-}
 
-async function playNext(guildId) {
-    console.log('=== playNext called ===');
-    const runtime = getGuildRuntime(guildId);
+    searchCache.set(cacheKey, { result: resolved, timestamp: Date.now() });
 
-    if (!runtime.connection) {
-        console.log('No voice connection, skipping');
-
-        return;
+    if (searchCache.size > 100) {
+        const oldest = [...searchCache.entries()]
+            .sort((a, b) => a[1].timestamp - b[1].timestamp)
+            .slice(0, 50);
+        oldest.forEach(([key]) => searchCache.delete(key));
     }
 
-    if (!runtime.connection) {
+    return resolved;
+}
+
+async function playNext(guildId, attempt = 0) {
+    console.log(`=== playNext called (attempt ${attempt}) ===`);
+    const runtime = getGuildRuntime(guildId);
+
+    if (!runtime.connection || runtime.connection.state.status === VoiceConnectionStatus.Destroyed) {
+        console.log('No voice connection, skipping');
+
         return;
     }
 
@@ -413,9 +484,9 @@ async function playNext(guildId) {
         return;
     }
 
-let title = item.titulo || item.title || sourceUrl;
+    const title = item.titulo || item.title || sourceUrl;
 
-try {
+    try {
         console.log(`Getting audio via yt-dlp for: ${sourceUrl}`);
         const audioStream = await getAudioStream(sourceUrl);
         console.log(`Got audio stream, creating resource...`);
@@ -429,20 +500,27 @@ try {
     } catch (error) {
         console.error('play.stream failed:', error);
         
-        // Don't re-add to queue - just notify and try next
-        await apiRequest(`/guilds/${guildId}/current`, { method: 'DELETE' });
-        await notifyGuild(guildId, `❌ No pude reproducir **${title}**: ${error.message}`);
+        if (attempt < 2) {
+            console.log(`Retrying playNext (attempt ${attempt + 1})...`);
+            await new Promise(r => setTimeout(r, 1000));
+            return playNext(guildId, attempt + 1);
+        }
         
-        // Try next song in queue
-        await playNext(guildId);
+        await apiRequest(`/guilds/${guildId}/current`, { method: 'DELETE' });
+        await notifyGuild(guildId, `No pude reproducir **${title}**: ${error.message}`);
+        
+        await playNext(guildId, 0);
     }
 }
 
 async function startPlaybackIfIdle(guildId) {
     const runtime = getGuildRuntime(guildId);
+    console.log(`startPlaybackIfIdle: player status = ${runtime.player.state.status}`);
 
     if (runtime.player.state.status !== AudioPlayerStatus.Playing) {
         await playNext(guildId);
+    } else {
+        console.log('Player already playing, skipping playNext');
     }
 }
 
@@ -481,17 +559,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const runtime = getGuildRuntime(guildId);
     runtime.textChannelId = interaction.channelId;
 
-    if (!runtime.player.listenerCount(AudioPlayerStatus.Idle)) {
-        runtime.player.on(AudioPlayerStatus.Idle, async () => {
-            try {
-                await playNext(guildId);
-            } catch (error) {
-                 
-                console.error('playNext error:', error.message);
-            }
-        });
-    }
-
     try {
         if (interaction.commandName === 'creartono') {
             const name = interaction.options.getString('nombre', true).trim();
@@ -522,8 +589,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.deferReply();
             await ensureVoiceConnection(interaction);
 
-            const tone = await apiRequest(`/tones?name=${encodeURIComponent(normalizeToneName(requestedName))}`);
-            const state = await apiRequest(`/guilds/${guildId}/playback`);
+            const [tone, state] = await Promise.all([
+                apiRequest(`/tones?name=${encodeURIComponent(normalizeToneName(requestedName))}`),
+                apiRequest(`/guilds/${guildId}/playback`).catch(() => ({ queue: [] })),
+            ]);
             const isDuplicate = state.queue.some((item) => item.url === tone.url);
 
             if (isDuplicate) {
@@ -537,8 +606,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 body: { item: { tipo: 'youtube_pendiente', url: tone.url, titulo: tone.name } },
             });
 
-            await startPlaybackIfIdle(guildId);
             await interaction.editReply(`📝 Tono añadido a la cola: **${tone.name}**`);
+
+            startPlaybackIfIdle(guildId).catch((err) => {
+                console.error('startPlaybackIfIdle error:', err.message);
+            });
 
             return;
         }
@@ -594,11 +666,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.deferReply();
             await ensureVoiceConnection(interaction);
 
-const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
+            const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
 
             if (isYouTubePlaylist) {
                 try {
-                    // Extract all video URLs first
                     const videoUrls = await extractPlaylistUrls(input);
                     
                     if (!videoUrls || videoUrls.length === 0) {
@@ -607,7 +678,6 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
                         return;
                     }
                     
-                    // Add each video to queue
                     let addedCount = 0;
 
                     for (const videoUrl of videoUrls) {
@@ -618,7 +688,6 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
                             });
                             addedCount++;
                         } catch {
-                            // Skip failed items
                         }
                     }
                     
@@ -636,30 +705,24 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
             const isUrl = /^https?:\/\//i.test(input);
             
             if (isUrl) {
-                // Check if this URL already exists in queue to avoid duplicates
-                const state = await apiRequest(`/guilds/${guildId}/playback`);
-                const isDuplicate = state.queue.some(item => item.url === input);
-                
-                if (isDuplicate) {
-                    await interaction.editReply(`⚠️ **${input}** ya está en la cola.`);
-
-                    return;
-                }
-                
-                const title = input;
                 await apiRequest(`/guilds/${guildId}/queue/items`, {
                     method: 'POST',
-                    body: { item: { tipo: 'youtube_pendiente', url: input, titulo: title } },
+                    body: { item: { tipo: 'youtube_pendiente', url: input, titulo: input } },
                 });
 
-                await startPlaybackIfIdle(guildId);
-                await interaction.editReply(`📝 Añadido a la cola: **${title}**`);
+                await interaction.editReply(`📝 Añadido a la cola: **${input}**`);
+
+                startPlaybackIfIdle(guildId).catch((err) => {
+                    console.error('startPlaybackIfIdle error:', err.message);
+                });
 
                 return;
             }
 
-            // Otherwise treat as YouTube search
-            const track = await resolveTrack(input);
+            const [track, state] = await Promise.all([
+                resolveTrack(input),
+                apiRequest(`/guilds/${guildId}/playback`).catch(() => ({ queue: [] })),
+            ]);
 
             if (!track?.url) {
                 await interaction.editReply(`❌ No encontré ningún resultado para "${input}".`);
@@ -667,8 +730,6 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
                 return;
             }
             
-            // Check for duplicates
-            const state = await apiRequest(`/guilds/${guildId}/playback`);
             const isDuplicate = state.queue.some(item => item.url === track.url);
             
             if (isDuplicate) {
@@ -682,8 +743,11 @@ const isYouTubePlaylist = /^https?:\/\/.*[?&]list=/i.test(input);
                 body: { item: { tipo: 'youtube_pendiente', url: track.url, titulo: track.title } },
             });
 
-            await startPlaybackIfIdle(guildId);
             await interaction.editReply(`📝 Añadido a la cola: **${track.title}**`);
+
+            startPlaybackIfIdle(guildId).catch((err) => {
+                console.error('startPlaybackIfIdle error:', err.message);
+            });
 
             return;
         }
