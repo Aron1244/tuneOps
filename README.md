@@ -1,5 +1,6 @@
 # tuneOps - Discord Music Bot
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Aron1244/tuneOps)
 ## Requirements
 
 - Docker Desktop
