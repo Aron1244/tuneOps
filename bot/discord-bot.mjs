@@ -559,6 +559,51 @@ client.once(Events.ClientReady, async () => {
 
     console.log(`Discord bot conectado como ${client.user.tag}`);
 
+    client.on(Events.Disconnect, () => {
+        console.log('Discord client disconnected, attempting to reconnect...');
+    });
+
+    client.on(Events.Reconnecting, () => {
+        console.log('Discord client reconnecting...');
+    });
+
+    setInterval(async () => {
+        for (const [guildId, runtime] of voiceState) {
+            if (!runtime.connection || runtime.connection.state.status === VoiceConnectionStatus.Destroyed) {
+                continue;
+            }
+
+            try {
+                const state = await apiRequest(`/guilds/${guildId}/playback`).catch(() => null);
+                const queueCount = state?.queue_count || 0;
+                const current = state?.current;
+
+                if (current) {
+                    const activity = queueCount > 0 
+                        ? `🎵 ${current.titulo || current.title} | ${queueCount} en cola`
+                        : `🎵 ${current.titulo || current.title}`;
+
+                    client.user.setActivity({
+                        name: activity.slice(0, 128),
+                        type: 2,
+                    });
+                    break;
+                } else if (queueCount > 0) {
+                    client.user.setActivity({
+                        name: `${queueCount} canciones en cola`,
+                        type: 2,
+                    });
+                    break;
+                } else {
+                    client.user.setActivity({
+                        name: '/play para reproducir música',
+                        type: 2,
+                    });
+                }
+            } catch { /* ignore */ }
+        }
+    }, 30_000);
+
     try {
         if (config.guildId) {
             const guild = await client.guilds.fetch(config.guildId);
