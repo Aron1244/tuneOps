@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tone;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -57,6 +58,26 @@ class ToneController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Tono eliminado.']);
 
         return back();
+    }
+
+    public function destroyByName(Request $request): JsonResponse
+    {
+        $name = $request->query('name');
+
+        if (! $name) {
+            return response()->json(['message' => 'El parámetro name es requerido.'], 422);
+        }
+
+        $toneKey = $this->normalizeKey($name);
+        $tone = Tone::query()->where('tone_key', $toneKey)->first();
+
+        if (! $tone) {
+            return response()->json(['message' => 'Tono no encontrado.'], 404);
+        }
+
+        $tone->delete();
+
+        return response()->json(['deleted' => true, 'name' => $tone->name]);
     }
 
     /**

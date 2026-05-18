@@ -34,6 +34,7 @@ Route::post('/tones', [ToneController::class, 'store'])->name('api.tones.store')
 Route::get('/tones', [ToneController::class, 'find'])->name('api.tones.find');
 Route::get('/tones/list', [ToneController::class, 'index'])->name('api.tones.index');
 Route::get('/tones/{name}', [ToneController::class, 'show'])->name('api.tones.show');
+Route::delete('/tones', [ToneController::class, 'destroy'])->name('api.tones.destroy');
 
 Route::prefix('guilds/{guildId}')
     ->where(['guildId' => '[0-9]+'])

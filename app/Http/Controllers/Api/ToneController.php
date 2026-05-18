@@ -55,6 +55,26 @@ class ToneController extends Controller
         return $this->findByName($name);
     }
 
+    public function destroy(Request $request): JsonResponse
+    {
+        $name = $request->query('name');
+
+        if (!$name) {
+            return response()->json(['message' => 'El parámetro name es requerido.'], 422);
+        }
+
+        $toneKey = $this->normalizeKey($name);
+        $tone = Tone::query()->where('tone_key', $toneKey)->first();
+
+        if (!$tone) {
+            return response()->json(['message' => 'Tono no encontrado.'], 404);
+        }
+
+        $tone->delete();
+
+        return response()->json(['deleted' => true, 'name' => $tone->name]);
+    }
+
     private function findByName(string $name): JsonResponse
     {
         $tone = Tone::query()

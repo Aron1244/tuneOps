@@ -604,6 +604,29 @@ client.once(Events.ClientReady, async () => {
         }
     }, 30_000);
 
+    async function waitForApi(maxAttempts = 30, delayMs = 2000) {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const response = await fetch(`${config.apiBaseUrl}/test`);
+
+                if (response.ok) {
+                    console.log(`API disponible tras ${attempt} intento(s)`);
+
+                    return true;
+                }
+            } catch { /* ignore */ }
+
+            console.log(`Esperando API... intento ${attempt}/${maxAttempts}`);
+            await new Promise(r => setTimeout(r, delayMs));
+        }
+
+        console.warn('API no disponible tras timeout, continuando igual');
+
+        return false;
+    }
+
+    await waitForApi();
+
     try {
         if (config.guildId) {
             const guild = await client.guilds.fetch(config.guildId);
@@ -631,6 +654,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (interaction.commandName === 'creartono') {
             const name = interaction.options.getString('nombre', true).trim();
             const url = interaction.options.getString('link', true).trim();
+
             const result = await apiRequest('/tones', {
                 method: 'POST',
                 body: { name, url },
@@ -657,10 +681,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.deferReply();
             await ensureVoiceConnection(interaction);
 
-            const [tone, state] = await Promise.all([
-                apiRequest(`/tones?name=${encodeURIComponent(normalizeToneName(requestedName))}`),
-                apiRequest(`/guilds/${guildId}/playback`).catch(() => ({ queue: [] })),
-            ]);
+            const tone = await apiRequest(`/tones?name=${encodeURIComponent(normalizeToneName(requestedName))}`);
+
+            const isPlaylist = /^https?:\/\/.*[?&]list=/i.test(tone.url);
+
+            if (isPlaylist) {
+                try {
+                    const videoUrls = await extractPlaylistUrls(tone.url);
+                    let addedCount = 0;
+
+                    for (const videoUrl of videoUrls) {
+                        try {
+                            await apiRequest(`/guilds/${guildId}/queue/items`, {
+                                method: 'POST',
+                                body: { item: { tipo: 'youtube_pendiente', url: videoUrl, titulo: videoUrl } },
+                            });
+                            addedCount++;
+                        } catch { /* ignore */ }
+                    }
+
+                    await interaction.editReply(`📦 Playlist añadida: ${addedCount} canción(es) en cola.`);
+                    startPlaybackIfIdle(guildId).catch((err) => {
+                        console.error('startPlaybackIfIdle error:', err.message);
+                    });
+
+                    return;
+                } catch {
+                    await interaction.editReply(`⚠️ Error al procesar playlist, intentando como URL simple.`);
+                }
+            }
+
+            const state = await apiRequest(`/guilds/${guildId}/playback`).catch(() => ({ queue: [] }));
             const isDuplicate = state.queue.some((item) => item.url === tone.url);
 
             if (isDuplicate) {

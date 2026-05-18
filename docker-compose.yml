@@ -54,11 +54,11 @@ services:
 
     working_dir: /app
 
-    command: bash -lc "npm install && npm run bot:discord"
+    command: bash -lc "pnpm install --ignore-scripts && pnpm run bot:discord"
 
     depends_on:
       app:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_healthy
 
@@ -87,10 +87,11 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized", "--innodb_buffer_pool_loaded"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
 volumes:
   mariadb_data:
