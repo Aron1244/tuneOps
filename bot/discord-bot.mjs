@@ -269,7 +269,12 @@ const commands = [
     new SlashCommandBuilder().setName('leave').setDescription('Desconecta el bot del canal de voz'),
     new SlashCommandBuilder().setName('looplist').setDescription('Activa loop de lista'),
     new SlashCommandBuilder().setName('loopsingle').setDescription('Activa loop de canción actual'),
-    new SlashCommandBuilder().setName('noloop').setDescription('Desactiva cualquier loop'),
+    new SlashCommandBuilder()
+        .setName('noloop')
+        .setDescription('Desactiva cualquier loop'),
+    new SlashCommandBuilder()
+        .setName('hora')
+        .setDescription('Muestra la hora actual en diferentes zonas horarias'),
 ];
 
 function apiUrl(path) {
@@ -947,6 +952,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.deferReply();
             await interaction.editReply(
                 `📜 **Comandos disponibles**\n\n` +
+                `**🌍 General**\n` +
+                `/hora - Muestra la hora en diferentes zonas horarias\n\n` +
                 `**🎵 Reproducción**\n` +
                 `/play <URL/búsqueda> - Reproduce música desde YouTube\n` +
                 `/skip - Salta la canción actual\n` +
@@ -1073,6 +1080,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (interaction.commandName === 'noloop') {
             await apiRequest(`/guilds/${guildId}/loop`, { method: 'DELETE' });
             await interaction.reply('⏹ Modo loop desactivado.');
+
+            return;
+        }
+
+        if (interaction.commandName === 'hora') {
+            const now = new Date();
+
+            const formatTime = (utcHour, offsetHours) => {
+                const total = utcHour + offsetHours;
+                const hour = ((total + 24) % 24).toString().padStart(2, '0');
+                const minute = now.getUTCMinutes().toString().padStart(2, '0');
+
+                return `${hour}:${minute}`;
+            };
+
+            const utcHour = now.getUTCHours();
+
+            const pdt = formatTime(utcHour, -7);
+            const cdt = formatTime(utcHour, -5);
+            const clt = formatTime(utcHour, -4);
+            const utc = formatTime(utcHour, 0);
+
+            await interaction.reply(
+                `🌍 **Hora mundial**\n\n` +
+                `PDT: ${pdt}\n` +
+                `CDT: ${cdt}\n` +
+                `CLT: ${clt}\n` +
+                `UTC: ${utc}`,
+            );
+
+            return;
         }
     } catch (error) {
         const message = `❌ Error: ${error.message}`;

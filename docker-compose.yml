@@ -48,6 +48,9 @@ services:
 
     container_name: tuneOps_discord_bot
 
+    environment:
+      - CI=true
+
     volumes:
       - ./:/app
       - discord_bot_node_modules:/app/node_modules
