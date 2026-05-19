@@ -1,11 +1,14 @@
 # tuneOps - Discord Music Bot
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Aron1244/tuneOps)
+
+Bot de música para Discord con panel web para gestionar tonos personalizados. Construido con Node.js (discord.js), yt-dlp para streaming de audio y Laravel + React para la API y frontend.
+
 ## Requirements
 
 - Docker Desktop
 - WSL2 enabled (Windows)
-- YouTube cookies file (`cookies.txt` in project root)
+- YouTube cookies (opcional: archivo `cookies.txt` en raíz o variable `YOUTUBE_COOKIE` en .env)
 
 ---
 
@@ -29,13 +32,13 @@
 
 ## Services
 
-| Service | Image | Port |
-|---------|-------|------|
-| API (nginx + PHP-FPM) | tuneops-app | 8001 |
-| Discord Bot | tuneops-discord-bot | - |
-| Redis | redis:7 | 6379 |
-| MariaDB | mariadb:11 | 3306 |
-| nginx | nginx:alpine | 8001 |
+| Service | Container | Image | Port |
+|---------|-----------|-------|------|
+| API (PHP-FPM) | tuneOps_app | tuneops-app | - |
+| Web (nginx) | tuneOps_nginx | nginx:alpine | 8001 |
+| Discord Bot | tuneOps_discord_bot | tuneops-app | - |
+| Redis | tuneOps_redis | redis:7-alpine | 6379 |
+| MariaDB | tuneOps_bot_db | mariadb:11 | 3306 |
 
 ---
 
@@ -90,20 +93,55 @@ DB_PASSWORD=secret
 
 ## Discord Commands
 
+### General
+
 | Command | Description |
 |---------|-------------|
-| `/creartono <nombre> <link>` | Save or update a named tone |
-| `/tono <nombre>` | Add saved tone to queue |
-| `/play <query/url>` | Play music (YouTube search or URL) |
-| `/skip` | Skip current song |
-| `/eliminar <name>` | Remove song from queue |
-| `/limpiar` | Clear queue |
-| `/lista` | Show queue |
-| `/looplist` | Loop entire queue |
-| `/loopsingle` | Loop current song |
-| `/noloop` | Disable loop |
-| `/stop` | Stop and clear |
-| `/leave` | Disconnect from voice |
+| `/hora` | Muestra la hora actual en PDT, CDT, CLT y UTC |
+| `/comandos` | Lista todos los comandos disponibles |
+
+### Reproducción
+
+| Command | Description |
+|---------|-------------|
+| `/play <input>` | Reproduce música (URL de YouTube o búsqueda) |
+| `/skip` | Salta la canción actual |
+| `/stop` | Detiene reproducción y limpia la cola |
+| `/lista` | Muestra estado de reproducción y cola |
+| `/pahora` | Muestra las próximas 5 canciones |
+| `/last` | Salta a la última canción y limpia el resto |
+
+### Loop
+
+| Command | Description |
+|---------|-------------|
+| `/looplist` | Activa loop de toda la lista |
+| `/loopsingle` | Loop de la canción actual |
+| `/noloop` | Desactiva cualquier modo loop |
+
+### Tonos personalizados
+
+| Command | Description |
+|---------|-------------|
+| `/tonos` | Lista todos los tonos guardados |
+| `/creartono <nombre> <link>` | Guarda un tono por nombre |
+| `/tono <nombre>` | Reproduce un tono guardado |
+| `/editartono <nombre> <link>` | Edita el link de un tono |
+| `/eliminartono <nombre>` | Elimina un tono guardado |
+
+### Cola
+
+| Command | Description |
+|---------|-------------|
+| `/eliminar <texto>` | Elimina canción por coincidencia en título |
+| `/limpiar` | Limpia la cola y pendientes |
+
+### Voz
+
+| Command | Description |
+|---------|-------------|
+| `/leave` | Desconecta el bot del canal de voz |
+| `/debugvoz` | Muestra estado interno de voz/cola (debug) |
 
 ---
 
@@ -158,17 +196,19 @@ DELETE /api/guilds/{guildId}/loop       # Disable loop
 
 ## Features
 
-- ✅ YouTube search and direct URLs
-- ✅ YouTube playlists (extracts all videos)
-- ✅ Multiple URL support (any yt-dlp supported site)
-- ✅ Queue management with duplicates detection
-- ✅ Loop modes (list/single)
-- ✅ Skip, remove, clear commands
-- ✅ Redis-based state persistence
-- ✅ YouTube cookies to bypass rate limits
-- ✅ Stream directly via yt-dlp (no play-dl)
-- ✅ nginx + PHP-FPM for reliable JSON parsing
-- ✅ CRUD web de tonos en `/tones` (Laravel + React + Tailwind)
+- 🎵 Reproducción desde YouTube (búsqueda o URL directa)
+- 📦 Extracción automática de playlists de YouTube (todas las canciones a la cola)
+- 🔗 Soporte para cualquier sitio soportado por yt-dlp
+- 🔄 Detección de duplicados en la cola
+- 🔁 Modos loop (lista completa o canción individual)
+- 🏃skip, eliminar, limpiar comandos
+- 📊 Panel web CRUD para gestionar tonos (`/tones`)
+- 🍪 Cookies de YouTube (archivo o variable de entorno) para evitar límites
+- 🎧 Streaming directo via yt-dlp con retry automático
+- 🔍 Cache de búsquedas para evitar búsquedas repetidas
+- 🌐 Estado del bot con canción actual y cantidad en cola
+- 🕐 Comando de hora mundial
+- 🐳 Todo corriendo en Docker (nginx + PHP-FPM + Laravel + Redis + MariaDB)
 
 ---
 
@@ -206,7 +246,9 @@ curl -X POST http://localhost:8001/api/playlists/resolve \
 
 ## Notes
 
-- Cookies file (`cookies.txt`) is gitignored - add your own from browser extension
-- Bot automatically extracts playlist videos and adds each to queue
-- Failed streams skip to next song instead of re-adding to queue
-- Uses nginx on port 8001, not the old PHP built-in server on port 8000
+- El archivo de cookies (`cookies.txt`) está gitignored - añade el tuyo desde una extensión de navegador
+- El bot extrae automáticamente los videos de playlists y los añade a la cola
+- Streams fallidos saltan a la siguiente canción en lugar de reintentarlo infinitamente
+- El panel web está disponible en `http://localhost:8001/tones`
+- El bot usa `play-dl` para búsqueda y `yt-dlp` para streaming de audio
+- Puedes usar `YOUTUBE_COOKIE` como variable de entorno en lugar del archivo
