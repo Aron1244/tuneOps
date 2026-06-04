@@ -27,9 +27,12 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+RUN composer install --no-interaction --optimize-autoloader --no-scripts
+
 COPY package*.json pnpm-lock.yaml ./
 RUN pnpm install --ignore-scripts
-
-WORKDIR /app
 
 CMD ["php-fpm"]

@@ -136,7 +136,7 @@ async function getAudioStream(videoUrl, attempt = 0) {
     
     return new Promise((resolve, reject) => {
         const args = [
-            '-f', 'bestaudio',
+            '-f', 'bestaudio[acodec=opus]/bestaudio/best',
             '-o', '-',
             '--no-playlist',
             '--no-warnings',
@@ -144,6 +144,7 @@ async function getAudioStream(videoUrl, attempt = 0) {
             '--retries', '5',
             '--fragment-retries', '5',
             '--buffer-size', '16M',
+            '--js-runtimes', 'node',
         ];
         
         const cookieFile = '/app/cookies.txt';

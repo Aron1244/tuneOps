@@ -8,6 +8,7 @@ services:
 
     volumes:
       - ./:/app
+      - app_vendor:/app/vendor
 
     working_dir: /app
 
@@ -99,3 +100,4 @@ services:
 volumes:
   mariadb_data:
   discord_bot_node_modules:
+  app_vendor:
