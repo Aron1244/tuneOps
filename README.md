@@ -1,21 +1,55 @@
-# tuneOps - Discord Music Bot
+<div align="center">
+  <img src="public/tuneOpsAvatar.jpg" alt="tuneOps" width="220" />
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Aron1244/tuneOps)
+  # 🎵 tuneOps
 
-Bot de música para Discord con panel web para gestionar tonos personalizados. Construido con Node.js (discord.js), yt-dlp para streaming de audio y Laravel + React para la API y frontend.
+  ### Bot de música para Discord con panel web para gestionar tonos personalizados
 
-## Requirements
+  [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-00E5FF?style=for-the-badge&logoColor=0D0D0D)](https://deepwiki.com/Aron1244/tuneOps)
+  [![Discord.js](https://img.shields.io/badge/discord.js-9D4EDD?style=for-the-badge&logo=discord&logoColor=white)](https://discord.js.org)
+  [![Node](https://img.shields.io/badge/node-22-FF1493?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
+  [![Laravel](https://img.shields.io/badge/Laravel-12-00E5FF?style=for-the-badge&logo=laravel&logoColor=white)](https://laravel.com)
+  [![Docker](https://img.shields.io/badge/Docker-Compose-9D4EDD?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
+  [![yt-dlp](https://img.shields.io/badge/yt--dlp-FF1493?style=for-the-badge&logo=youtube&logoColor=white)](https://github.com/yt-dlp/yt-dlp)
 
-- Docker Desktop
-- WSL2 enabled (Windows)
-- YouTube cookies (opcional: archivo `cookies.txt` en raíz o variable `YOUTUBE_COOKIE` en .env)
+  Construido con **Node.js** (discord.js), **yt-dlp** para streaming de audio y **Laravel + React** para la API y frontend.
+</div>
 
 ---
 
-## Architecture
+## 🎨 Brand colors
+
+<table align="center">
+  <tr>
+    <td align="center"><b>🔵 Cyan</b><br><code>#00E5FF</code><br><img src="https://img.shields.io/badge/%20-00E5FF?style=for-the-badge" /></td>
+    <td align="center"><b>🟣 Purple</b><br><code>#9D4EDD</code><br><img src="https://img.shields.io/badge/%20-9D4EDD?style=for-the-badge" /></td>
+    <td align="center"><b>🔴 Magenta</b><br><code>#FF1493</code><br><img src="https://img.shields.io/badge/%20-FF1493?style=for-the-badge" /></td>
+    <td align="center"><b>⚫ Black</b><br><code>#0D0D0D</code><br><img src="https://img.shields.io/badge/%20-0D0D0D?style=for-the-badge" /></td>
+  </tr>
+  <tr>
+    <td align="center">Brand principal · logo "TUNE OPS" · UI primaria</td>
+    <td align="center">Audífonos · acentos secundarios · UI</td>
+    <td align="center">Neón · highlights · notificaciones</td>
+    <td align="center">Background · hoodie · texto</td>
+  </tr>
+</table>
+
+---
+
+## 📋 Requirements
+
+- <img src="https://img.shields.io/badge/Docker-Desktop-9D4EDD?style=flat-square&logo=docker&logoColor=white" /> Docker Desktop
+- <img src="https://img.shields.io/badge/WSL2-Enabled-00E5FF?style=flat-square&logo=windows&logoColor=white" /> WSL2 enabled (Windows)
+- <img src="https://img.shields.io/badge/YouTube-Cookies-FF1493?style=flat-square&logo=youtube&logoColor=white" /> YouTube cookies (opcional: archivo `cookies.txt` en raíz o variable `YOUTUBE_COOKIE` en `.env`)
+
+---
+
+## 🏗️ Architecture
+
+<div align="center">
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+┌─────────────┐     �─────────────┐     ┌─────────────┐
 │  Discord    │────▶│  Bot (Node) │────▶│  API (PHP)  │
 │  User       │     │  discord.js │     │  Laravel    │
 └─────────────┘     └─────────────┘     └─────────────┘
@@ -25,26 +59,28 @@ Bot de música para Discord con panel web para gestionar tonos personalizados. C
                      ┌───────────┐    ┌───────────┐    ┌───────────┐
                      │  Redis    │    │  MariaDB  │    │  yt-dlp   │
                      │  (queue)  │    │  (data)   │    │  (audio)  │
-                     └───────────┘    └───────────┘    └───────────┘
+                     └───────────┘    └───────────┘    └───────────�
 ```
+
+</div>
 
 ---
 
-## Services
+## 🐳 Services
 
 | Service | Container | Image | Port |
 |---------|-----------|-------|------|
-| API (PHP-FPM) | tuneOps_app | tuneops-app | - |
-| Web (nginx) | tuneOps_nginx | nginx:alpine | 8001 |
-| Discord Bot | tuneOps_discord_bot | tuneops-app | - |
-| Redis | tuneOps_redis | redis:7-alpine | 6379 |
-| MariaDB | tuneOps_bot_db | mariadb:11 | 3306 |
+| API (PHP-FPM) | `tuneOps_app` | `tuneops-app` | - |
+| Web (nginx) | `tuneOps_nginx` | `nginx:alpine` | `8001` |
+| Discord Bot | `tuneOps_discord_bot` | `tuneops-app` | - |
+| Redis | `tuneOps_redis` | `redis:7-alpine` | `6379` |
+| MariaDB | `tuneOps_bot_db` | `mariadb:11` | `3306` |
 
 ---
 
-## Setup
+## ⚙️ Setup
 
-### 1. Environment
+### 1️⃣ Environment
 
 ```bash
 cp .env.example .env
@@ -52,13 +88,13 @@ cp .env.example .env
 
 Add your YouTube cookies in project root as `cookies.txt`.
 
-### 2. Build & Start
+### 2️⃣ Build & Start
 
 ```bash
 docker compose up -d --build
 ```
 
-### 3. Verify
+### 3️⃣ Verify
 
 ```bash
 docker compose ps
@@ -66,9 +102,9 @@ docker compose ps
 
 ---
 
-## Configuration
+## 🔧 Configuration
 
-### Required .env variables
+### Required `.env` variables
 
 ```env
 # Discord Bot
@@ -91,27 +127,29 @@ DB_PASSWORD=secret
 
 ---
 
-## Discord Commands
+## 💬 Discord Commands
 
-### General
+### 🌍 General
 
 | Command | Description |
 |---------|-------------|
 | `/hora` | Muestra la hora actual en PDT, CDT, CLT y UTC |
 | `/comandos` | Lista todos los comandos disponibles |
 
-### Reproducción
+### 🎵 Reproducción
 
 | Command | Description |
 |---------|-------------|
 | `/play <input>` | Reproduce música (URL de YouTube o búsqueda) |
 | `/skip` | Salta la canción actual |
-| `/stop` | Detiene reproducción y limpia la cola |
+| `/stop` | Detiene reproducción y limpia cola |
+| `/stnow` | Detiene solo la canción actual (mantiene cola) |
+| `/pnow` | Reanuda la cola después de `/stnow` |
 | `/lista` | Muestra estado de reproducción y cola |
 | `/pahora` | Muestra las próximas 5 canciones |
 | `/last` | Salta a la última canción y limpia el resto |
 
-### Loop
+### 🔁 Loop
 
 | Command | Description |
 |---------|-------------|
@@ -119,7 +157,7 @@ DB_PASSWORD=secret
 | `/loopsingle` | Loop de la canción actual |
 | `/noloop` | Desactiva cualquier modo loop |
 
-### Tonos personalizados
+### 🔊 Tonos personalizados
 
 | Command | Description |
 |---------|-------------|
@@ -129,25 +167,25 @@ DB_PASSWORD=secret
 | `/editartono <nombre> <link>` | Edita el link de un tono |
 | `/eliminartono <nombre>` | Elimina un tono guardado |
 
-### Cola
+### 🧹 Cola
 
 | Command | Description |
 |---------|-------------|
 | `/eliminar <texto>` | Elimina canción por coincidencia en título |
 | `/limpiar` | Limpia la cola y pendientes |
 
-### Voz
+### 🎙️ Voz
 
 | Command | Description |
 |---------|-------------|
 | `/leave` | Desconecta el bot del canal de voz |
-| `/debugvoz` | Muestra estado interno de voz/cola (debug) |
+| `/debugvoz` | Estado interno de voz/cola (debug) |
 
 ---
 
-## API Endpoints
+## 🛣️ API Endpoints
 
-### Playlists
+### � Playlists
 
 ```bash
 # Resolve playlist URLs
@@ -155,7 +193,7 @@ POST /api/playlists/resolve
 {"url": "https://www.youtube.com/playlist?list=PLxxx", "ttl_seconds": 3600}
 ```
 
-### Tones
+### 🎶 Tones
 
 ```bash
 # Create or update tone
@@ -166,7 +204,7 @@ POST /api/tones
 GET /api/tones?name=intro
 ```
 
-### Guild Playback
+### 🎚️ Guild Playback
 
 ```bash
 # Get playback state
@@ -194,14 +232,15 @@ DELETE /api/guilds/{guildId}/loop       # Disable loop
 
 ---
 
-## Features
+## ✨ Features
 
 - 🎵 Reproducción desde YouTube (búsqueda o URL directa)
 - 📦 Extracción automática de playlists de YouTube (todas las canciones a la cola)
 - 🔗 Soporte para cualquier sitio soportado por yt-dlp
 - 🔄 Detección de duplicados en la cola
 - 🔁 Modos loop (lista completa o canción individual)
-- 🏃skip, eliminar, limpiar comandos
+- ⏯️ `/stnow` + `/pnow` para pausar/reanudar sin perder la cola
+- � `skip`, `eliminar`, `limpiar` comandos
 - 📊 Panel web CRUD para gestionar tonos (`/tones`)
 - 🍪 Cookies de YouTube (archivo o variable de entorno) para evitar límites
 - 🎧 Streaming directo via yt-dlp con retry automático
@@ -212,7 +251,7 @@ DELETE /api/guilds/{guildId}/loop       # Disable loop
 
 ---
 
-## Development
+## 🛠️ Development
 
 ### Rebuild specific service
 
@@ -244,7 +283,7 @@ curl -X POST http://localhost:8001/api/playlists/resolve \
 
 ---
 
-## Notes
+## 📝 Notes
 
 - El archivo de cookies (`cookies.txt`) está gitignored - añade el tuyo desde una extensión de navegador
 - El bot extrae automáticamente los videos de playlists y los añade a la cola
@@ -252,3 +291,10 @@ curl -X POST http://localhost:8001/api/playlists/resolve \
 - El panel web está disponible en `http://localhost:8001/tones`
 - El bot usa `play-dl` para búsqueda y `yt-dlp` para streaming de audio
 - Puedes usar `YOUTUBE_COOKIE` como variable de entorno en lugar del archivo
+- El contenedor del bot corre `yt-dlp -U` al arrancar para mantenerse actualizado
+
+---
+
+<div align="center">
+  <sub>Built with 💜 · cyan & magenta · by <a href="https://github.com/Aron1244">Aron1244</a></sub>
+</div>

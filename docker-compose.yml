@@ -58,7 +58,7 @@ services:
 
     working_dir: /app
 
-    command: bash -lc "pnpm install --ignore-scripts && pnpm run bot:discord"
+    command: bash -lc "yt-dlp -U 2>/dev/null || (curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && chmod +x /usr/local/bin/yt-dlp); pnpm install --ignore-scripts && pnpm run bot:discord"
 
     depends_on:
       app:

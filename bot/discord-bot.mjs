@@ -36,6 +36,7 @@ const config = {
     clientId: process.env.DISCORD_CLIENT_ID,
     guildId: process.env.DISCORD_GUILD_ID || null,
     apiBaseUrl: (process.env.BOT_API_BASE_URL || 'http://localhost:8000/api').replace(/\/+$/, ''),
+    frontendBaseUrl: (process.env.FRONTEND_BASE_URL || process.env.APP_URL || 'http://localhost:8001').replace(/\/+$/, ''),
 };
 
 function loadYoutubeCookieString() {
@@ -146,22 +147,27 @@ async function getAudioStream(videoUrl, attempt = 0) {
             '--buffer-size', '16M',
             '--js-runtimes', 'node',
         ];
-        
+
         const cookieFile = '/app/cookies.txt';
 
         if (fs.existsSync(cookieFile)) {
             args.push('--cookies', cookieFile);
         }
-        
+
         args.push(videoUrl);
-        
+
         const proc = spawn('/usr/local/bin/yt-dlp', args);
-        
+
         const passThrough = new PassThrough();
-        
+
         let errorOccurred = false;
         let ytError = '';
-        
+        let bytesReceived = 0;
+
+        proc.stdout.on('data', (chunk) => {
+            bytesReceived += chunk.length;
+        });
+
         proc.stdout.on('error', (err) => {
             console.error('stdout error:', err.message);
 
@@ -170,20 +176,22 @@ async function getAudioStream(videoUrl, attempt = 0) {
                 passThrough.destroy(err);
             }
         });
-        
+
         passThrough.on('error', (err) => {
-            console.error('passThrough error:', err.message);
+            if (err.message !== 'Premature close') {
+                console.error('passThrough error:', err.message);
+            }
         });
-        
+
         proc.on('error', (err) => {
             console.error('proc error:', err.message);
 
             if (!errorOccurred) {
                 errorOccurred = true;
-                passThrough.end();
+                reject(err);
             }
         });
-        
+
         proc.stderr.on('data', (chunk) => {
             const msg = chunk.toString();
 
@@ -192,11 +200,15 @@ async function getAudioStream(videoUrl, attempt = 0) {
                 console.error('yt-dlp:', msg.trim());
             }
         });
-        
-        proc.on('close', (code) => {
-            console.log('yt-dlp exited with code:', code);
 
-            if (!errorOccurred && ytError && code !== 0 && attempt < maxAttempts - 1) {
+        proc.on('close', (code) => {
+            console.log(`yt-dlp exited with code: ${code}, bytes: ${bytesReceived}`);
+
+            if (errorOccurred) {
+                return;
+            }
+
+            if (code !== 0 && attempt < maxAttempts - 1 && ytError) {
                 console.log(`Retrying getAudioStream (attempt ${attempt + 1})...`);
                 setTimeout(() => {
                     getAudioStream(videoUrl, attempt + 1)
@@ -207,11 +219,26 @@ async function getAudioStream(videoUrl, attempt = 0) {
                 return;
             }
 
-            if (!errorOccurred) {
-                passThrough.end();
+            if (code !== 0) {
+                const errMsg = ytError.trim() || `yt-dlp exited with code ${code}`;
+                const err = new Error(errMsg);
+                passThrough.destroy(err);
+                reject(err);
+
+                return;
             }
+
+            if (bytesReceived === 0) {
+                const err = new Error('yt-dlp no produjo datos de audio (formato no disponible o URL bloqueada por YouTube)');
+                passThrough.destroy(err);
+                reject(err);
+
+                return;
+            }
+
+            passThrough.end();
         });
-        
+
         proc.stdout.pipe(passThrough);
         resolve(passThrough);
     });
@@ -267,6 +294,8 @@ const commands = [
     new SlashCommandBuilder().setName('pahora').setDescription('Muestra próximas 5 canciones'),
     new SlashCommandBuilder().setName('last').setDescription('Salta a la última canción y limpia el resto'),
     new SlashCommandBuilder().setName('stop').setDescription('Detiene reproducción y limpia cola'),
+    new SlashCommandBuilder().setName('stnow').setDescription('Detiene solo la canción actual, mantiene la cola'),
+    new SlashCommandBuilder().setName('pnow').setDescription('Reanuda la reproducción de la cola'),
     new SlashCommandBuilder().setName('leave').setDescription('Desconecta el bot del canal de voz'),
     new SlashCommandBuilder().setName('looplist').setDescription('Activa loop de lista'),
     new SlashCommandBuilder().setName('loopsingle').setDescription('Activa loop de canción actual'),
@@ -276,6 +305,9 @@ const commands = [
     new SlashCommandBuilder()
         .setName('hora')
         .setDescription('Muestra la hora actual en diferentes zonas horarias'),
+    new SlashCommandBuilder()
+        .setName('gestion')
+        .setDescription('Enlace al panel web de gestión de tonos'),
 ];
 
 function apiUrl(path) {
@@ -333,14 +365,39 @@ function getGuildRuntime(guildId) {
             connection: null,
             textChannelId: null,
             currentTitle: null,
+            paused: false,
         };
 
         player.on('error', (error) => {
             console.error(`audio player error [${guildId}]:`, error.message);
+
+            if (runtime.paused) {
+                console.log(`Player error while paused [${guildId}], not advancing`);
+
+                return;
+            }
+
+            const failedTitle = runtime.currentTitle;
+            runtime.currentTitle = null;
+
+            if (failedTitle) {
+                notifyGuild(guildId, `⚠️ Error reproduciendo **${failedTitle}**, saltando a la siguiente.`);
+            }
+
+            apiRequest(`/guilds/${guildId}/current`, { method: 'DELETE' })
+                .catch((err) => console.error('clearCurrent failed:', err.message));
+
+            runtime.player.stop(true);
         });
 
         player.on(AudioPlayerStatus.Idle, async () => {
             console.log(`Player idle for guild ${guildId}`);
+
+            if (runtime.paused) {
+                console.log(`Player paused, skipping auto-next for guild ${guildId}`);
+
+                return;
+            }
 
             try {
                 await playNext(guildId);
@@ -530,14 +587,55 @@ async function playNext(guildId, attempt = 0) {
     }
 }
 
+async function replayCurrent(guildId) {
+    const runtime = getGuildRuntime(guildId);
+
+    if (!runtime.connection || runtime.connection.state.status === VoiceConnectionStatus.Destroyed) {
+        return;
+    }
+
+    const state = await apiRequest(`/guilds/${guildId}/playback`).catch(() => null);
+    const item = state?.current;
+
+    if (!item) {
+        console.log(`replayCurrent: no current item for guild ${guildId}`);
+
+        return;
+    }
+
+    const sourceUrl = item.url || item.video_url || item.webpage_url;
+    const title = item.titulo || item.title || sourceUrl || 'Desconocido';
+
+    if (!sourceUrl) {
+        console.log(`replayCurrent: current item has no URL for guild ${guildId}`);
+
+        return;
+    }
+
+    try {
+        console.log(`Replaying current via yt-dlp for: ${sourceUrl}`);
+        const audioStream = await getAudioStream(sourceUrl);
+        const resource = createAudioResource(audioStream, { inlineVolume: true });
+        runtime.currentTitle = title;
+        runtime.player.play(resource);
+    } catch (error) {
+        console.error('replayCurrent failed:', error);
+
+        await apiRequest(`/guilds/${guildId}/current`, { method: 'DELETE' })
+            .catch(() => {});
+        await notifyGuild(guildId, `No pude reanudar **${title}**: ${error.message}`);
+        await playNext(guildId, 0);
+    }
+}
+
 async function startPlaybackIfIdle(guildId) {
     const runtime = getGuildRuntime(guildId);
     console.log(`startPlaybackIfIdle: player status = ${runtime.player.state.status}`);
 
-    if (runtime.player.state.status !== AudioPlayerStatus.Playing) {
+    if (runtime.player.state.status === AudioPlayerStatus.Idle) {
         await playNext(guildId);
     } else {
-        console.log('Player already playing, skipping playNext');
+        console.log(`Player is ${runtime.player.state.status}, letting it finish instead of skipping`);
     }
 }
 
@@ -954,11 +1052,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.editReply(
                 `📜 **Comandos disponibles**\n\n` +
                 `**🌍 General**\n` +
-                `/hora - Muestra la hora en diferentes zonas horarias\n\n` +
+                `/hora - Muestra la hora en diferentes zonas horarias\n` +
+                `/gestion - Enlace al panel web de gestión de tonos\n\n` +
                 `**🎵 Reproducción**\n` +
                 `/play <URL/búsqueda> - Reproduce música desde YouTube\n` +
                 `/skip - Salta la canción actual\n` +
                 `/stop - Detiene reproducción y limpia cola\n` +
+                `/stnow - Detiene solo la canción actual (mantiene cola)\n` +
+                `/pnow - Reanuda la cola después de /stnow\n` +
                 `/lista - Muestra estado de reproducción y cola\n` +
                 `/pahora - Muestra las próximas 5 canciones\n` +
                 `/last - Salta a la última canción y limpia el resto\n\n` +
@@ -1054,6 +1155,52 @@ client.on(Events.InteractionCreate, async (interaction) => {
             return;
         }
 
+        if (interaction.commandName === 'stnow') {
+            runtime.paused = true;
+            runtime.currentTitle = null;
+            runtime.player.stop(true);
+            await interaction.reply('� Música detenida. Cola preservada. Usa `/pnow` para reanudar.');
+
+            return;
+        }
+
+        if (interaction.commandName === 'pnow') {
+            if (!runtime.connection || runtime.connection.state.status === VoiceConnectionStatus.Destroyed) {
+                await interaction.reply('� No estoy en un canal de voz. Usa `/play` para iniciar.');
+
+                return;
+            }
+
+            if (runtime.player.state.status === AudioPlayerStatus.Playing) {
+                await interaction.reply('▶️ Ya estoy reproduciendo.');
+
+                return;
+            }
+
+            runtime.paused = false;
+
+            const state = await apiRequest(`/guilds/${guildId}/playback`).catch(() => null);
+
+            if (!state || (!state.current && (state.queue_count || 0) === 0 && (state.pending_count || 0) === 0)) {
+                await interaction.reply('� No hay nada para reanudar.');
+
+                return;
+            }
+
+            await interaction.deferReply();
+
+            if (state.current) {
+                const title = state.current.titulo || state.current.title || 'la canción actual';
+                await replayCurrent(guildId);
+                await interaction.editReply(`▶️ Reanudando **${title}** desde el inicio.`);
+            } else {
+                await startPlaybackIfIdle(guildId);
+                await interaction.editReply('▶️ Reanudando cola.');
+            }
+
+            return;
+        }
+
         if (interaction.commandName === 'leave') {
             await apiRequest(`/guilds/${guildId}/queue`, { method: 'DELETE' });
             runtime.player.stop(true);
@@ -1109,6 +1256,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 `CDT: ${cdt}\n` +
                 `CLT: ${clt}\n` +
                 `UTC: ${utc}`,
+            );
+
+            return;
+        }
+
+        if (interaction.commandName === 'gestion') {
+            const tonesUrl = `${config.frontendBaseUrl}/tones`;
+
+            await interaction.reply(
+                `🔗 **Panel de gestión de tonos**\n${tonesUrl}`,
             );
 
             return;

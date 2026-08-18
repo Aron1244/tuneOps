@@ -9,7 +9,6 @@ Route::inertia('/', 'welcome', [
 ])->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
     Route::get('tones', [ToneController::class, 'index'])->name('tones.index');
     Route::post('tones', [ToneController::class, 'store'])->name('tones.store');
     Route::put('tones/{tone}', [ToneController::class, 'update'])->name('tones.update');

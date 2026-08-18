@@ -59,14 +59,14 @@ class ToneController extends Controller
     {
         $name = $request->query('name');
 
-        if (!$name) {
+        if (! $name) {
             return response()->json(['message' => 'El parámetro name es requerido.'], 422);
         }
 
         $toneKey = $this->normalizeKey($name);
         $tone = Tone::query()->where('tone_key', $toneKey)->first();
 
-        if (!$tone) {
+        if (! $tone) {
             return response()->json(['message' => 'Tono no encontrado.'], 404);
         }
 
